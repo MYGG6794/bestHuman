@@ -1,0 +1,18 @@
+Log initialized at 2025/6/12 16:27:08
+2025-06-12 16:27:08 [INFO] 应用程序启动中...
+2025-06-12 16:27:08 [INFO] MainForm 构造函数开始。
+2025-06-12 16:27:08 [INFO] 加载应用程序设置。
+2025-06-12 16:27:08 [INFO] 设置窗口置顶: True
+2025-06-12 16:27:08 [INFO] 启用点击穿透: True
+2025-06-12 16:27:08 [WARNING] 语音识别初始化失败（可能是因为没有麦克风）: Cannot find the requested data item, such as a data key or value.
+2025-06-12 16:27:08 [INFO] 尝试连接到 WebSocket 服务器: ws://localhost:8080
+2025-06-12 16:27:08 [WARNING] 语音识别初始化失败（可能是因为没有麦克风）: Cannot find the requested data item, such as a data key or value.
+2025-06-12 16:27:08 [INFO] MainForm 构造函数结束。
+2025-06-12 16:27:12 [ERROR] ERROR: WebSocket 连接失败: Unable to connect to the remote server
+Exception: Unable to connect to the remote server
+StackTrace:    at System.Net.WebSockets.WebSocketHandle.ConnectAsync(Uri uri, HttpMessageInvoker invoker, CancellationToken cancellationToken, ClientWebSocketOptions options)
+   at System.Net.WebSockets.ClientWebSocket.ConnectAsyncCore(Uri uri, HttpMessageInvoker invoker, CancellationToken cancellationToken)
+   at CoreApplication.WebSocketClient.ConnectAsync(String uri) in D:\Projects\bestHuman\bestHuman\CoreApplication\WebSocketClient.cs:line 56
+2025-06-12 16:27:12 [ERROR] ERROR: WebSocket 错误: 连接失败: Unable to connect to the remote server
+2025-06-12 16:27:20 [INFO] Ctrl + Alt + S 快捷键被按下。
+2025-06-12 16:27:20 [INFO] 设置界面已显示。

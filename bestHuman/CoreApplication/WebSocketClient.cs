@@ -9,9 +9,9 @@ namespace CoreApplication
 {
     public class WebSocketClient : IDisposable
     {
-        private ClientWebSocket _webSocket;
-        private CancellationTokenSource _cancellationTokenSource;
-        private string? _serverUri; // 声明为可空
+        private ClientWebSocket? _webSocket;
+        private CancellationTokenSource? _cancellationTokenSource;
+        private string? _serverUri;
 
         public event EventHandler? OnConnected;
         public event EventHandler? OnDisconnected;
@@ -22,15 +22,36 @@ namespace CoreApplication
 
         public WebSocketClient()
         {
+            InitializeWebSocket();
+        }
+
+        private void InitializeWebSocket()
+        {
+            _webSocket?.Dispose();
+            _cancellationTokenSource?.Cancel();
+            _cancellationTokenSource?.Dispose();
+
             _webSocket = new ClientWebSocket();
             _cancellationTokenSource = new CancellationTokenSource();
         }
 
         public async Task ConnectAsync(string uri)
         {
+            if (IsConnected)
+            {
+                await DisconnectAsync();
+            }
+
+            InitializeWebSocket();
             _serverUri = uri;
+
             try
             {
+                if (_webSocket == null || _cancellationTokenSource == null)
+                {
+                    throw new InvalidOperationException("WebSocket not initialized");
+                }
+
                 Logger.LogInfo($"尝试连接到 WebSocket 服务器: {_serverUri}");
                 await _webSocket.ConnectAsync(new Uri(_serverUri), _cancellationTokenSource.Token);
                 Logger.LogInfo("WebSocket 连接成功。");
@@ -81,7 +102,7 @@ namespace CoreApplication
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError($"发送 WebSocket 消息失败: {ex.Message}", ex);
+                    Logger.LogError($"发送 WebSocket 消消息失败: {ex.Message}", ex);
                     OnError?.Invoke(this, $"发送消息失败: {ex.Message}");
                 }
             }

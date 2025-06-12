@@ -8,8 +8,8 @@ namespace CoreApplication
 {
     public class SpeechService : IDisposable
     {
-        private SpeechRecognitionEngine _recognitionEngine;
-        private SpeechSynthesizer _synthesizer;
+        private SpeechRecognitionEngine? _recognitionEngine;
+        private SpeechSynthesizer? _synthesizer;
 
         public event EventHandler<string>? OnSpeechRecognized;
         public event EventHandler? OnSpeechSynthesisStarted;
@@ -18,22 +18,46 @@ namespace CoreApplication
 
         public SpeechService()
         {
-            // 初始化语音识别引擎
-            _recognitionEngine = new SpeechRecognitionEngine();
-            _recognitionEngine.SetInputToDefaultAudioDevice(); // 设置默认音频输入设备
-            _recognitionEngine.SpeechRecognized += RecognitionEngine_SpeechRecognized;
-            _recognitionEngine.SpeechRecognitionRejected += RecognitionEngine_SpeechRecognitionRejected;
-            _recognitionEngine.RecognizeCompleted += RecognitionEngine_RecognizeCompleted;
+            try
+            {
+                // 初始化语音合成器（这个通常不需要音频输入设备）
+                _synthesizer = new SpeechSynthesizer();
+                _synthesizer.SpeakStarted += Synthesizer_SpeakStarted;
+                _synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
 
-            // 初始化语音合成器
-            _synthesizer = new SpeechSynthesizer();
-            _synthesizer.SpeakStarted += Synthesizer_SpeakStarted;
-            _synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
+                // 初始化语音识别引擎
+                try
+                {
+                    _recognitionEngine = new SpeechRecognitionEngine();
+                    _recognitionEngine.SetInputToDefaultAudioDevice(); // 设置默认音频输入设备
+                    _recognitionEngine.SpeechRecognized += RecognitionEngine_SpeechRecognized;
+                    _recognitionEngine.SpeechRecognitionRejected += RecognitionEngine_SpeechRecognitionRejected;
+                    _recognitionEngine.RecognizeCompleted += RecognitionEngine_RecognizeCompleted;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"语音识别初始化失败（可能是因为没有麦克风）: {ex.Message}");
+                    _recognitionEngine = null; // 将引擎设为null以表示初始化失败
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"语音服务初始化失败: {ex.Message}", ex);
+                throw; // 如果连语音合成器都初始化失败，则抛出异常
+            }
         }
 
         // ASR 相关方法
         public void StartSpeechRecognition()
         {
+            if (_recognitionEngine == null)
+            {
+                var message = "语音识别引擎未初始化，请检查音频输入设备。";
+                Logger.LogWarning(message);
+                OnError?.Invoke(this, message);
+                return;
+            }
+
             try
             {
                 Logger.LogInfo("启动语音识别。");
@@ -48,6 +72,8 @@ namespace CoreApplication
 
         public void StopSpeechRecognition()
         {
+            if (_recognitionEngine == null) return;
+
             try
             {
                 Logger.LogInfo("停止语音识别。");
@@ -88,24 +114,63 @@ namespace CoreApplication
         }
 
         // TTS 相关方法
-        public void SynthesizeSpeech(string text, string? voiceName = null, int rate = 0, int volume = 100)
+        public Task<bool> SynthesizeSpeech(string text, string? voiceName = null, int rate = 0, int volume = 100)
         {
+            var tcs = new TaskCompletionSource<bool>();
+
+            if (_synthesizer == null)
+            {
+                OnError?.Invoke(this, "语音合成器未初始化");
+                tcs.SetResult(false);
+                return tcs.Task;
+            }
+
             try
             {
-                Logger.LogInfo($"合成语音: '{text}', 音色: '{voiceName}', 语速: {rate}, 音量: {volume}");
-                // SelectVoiceByHints 的第四个参数是 CultureInfo，如果不需要特定文化，可以传入 null
-                // 移除 VoicePreferredOver，直接根据名称选择音色
                 if (!string.IsNullOrEmpty(voiceName))
                 {
-                    _synthesizer.SelectVoice(voiceName);
+                    try
+                    {
+                        _synthesizer.SelectVoice(voiceName);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Logger.LogWarning($"选择语音 {voiceName} 失败，使用默认语音: {ex.Message}");
+                    }
                 }
-                else
-                {
-                    // 如果没有指定音色，则使用默认音色设置
-                    _synthesizer.SelectVoiceByHints(VoiceGender.NotSet, VoiceAge.NotSet);
-                }
+                
                 _synthesizer.Rate = rate;
                 _synthesizer.Volume = volume;
+
+                _synthesizer.SpeakCompleted += OnSynthesisCompleted;
+                _synthesizer.SpeakAsync(text);
+
+                void OnSynthesisCompleted(object? sender, SpeakCompletedEventArgs e)
+                {
+                    _synthesizer.SpeakCompleted -= OnSynthesisCompleted;
+                    tcs.SetResult(!e.Cancelled);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"语音合成失败: {ex.Message}", ex);
+                OnError?.Invoke(this, $"语音合成失败: {ex.Message}");
+                tcs.SetResult(false);
+            }
+
+            return tcs.Task;
+        }
+
+        public void Speak(string text)
+        {
+            if (_synthesizer == null)
+            {
+                OnError?.Invoke(this, "语音合成器未初始化");
+                return;
+            }
+
+            try
+            {
                 _synthesizer.SpeakAsync(text);
             }
             catch (Exception ex)
@@ -113,6 +178,11 @@ namespace CoreApplication
                 Logger.LogError($"语音合成失败: {ex.Message}", ex);
                 OnError?.Invoke(this, $"语音合成失败: {ex.Message}");
             }
+        }
+
+        public void StopSpeaking()
+        {
+            _synthesizer?.SpeakAsyncCancelAll();
         }
 
         public VoiceInfo[] GetAvailableVoices()
