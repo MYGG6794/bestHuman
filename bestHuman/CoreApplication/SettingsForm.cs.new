@@ -1,0 +1,434 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using System.IO;
+
+namespace CoreApplication
+{
+    public partial class SettingsForm : Form
+    {
+        // 定义事件，用于通知主窗口设置已更改
+        public event EventHandler<SettingsChangedEventArgs>? SettingsChanged;
+
+        // 假设的配置类
+        public class AppSettings
+        {            
+            public string StreamAddress { get; set; } = "http://127.0.0.1:11188/video.html";
+            public string WebSocketServerAddress { get; set; } = "ws://localhost:8080";
+            public Color ChromaKeyColor { get; set; } = Color.Green;
+            public int ChromaKeyTolerance { get; set; } = 30;
+            public int WindowWidth { get; set; } = 800;
+            public int WindowHeight { get; set; } = 600;
+            public int WindowX { get; set; } = -1;
+            public int WindowY { get; set; } = -1;
+            public bool ClickThroughEnabled { get; set; } = true;
+            public bool TopMostEnabled { get; set; } = true;
+            public string TtsVoiceName { get; set; } = "Microsoft Huihui";
+            public int TtsRate { get; set; } = 0;
+            public int TtsVolume { get; set; } = 100;
+
+            // AI服务配置
+            public string ModelPath { get; set; } = "";
+            public string KnowledgeBasePath { get; set; } = "";
+            public bool UseGPU { get; set; } = false;
+            public bool EnableCloudFallback { get; set; } = false;
+            public string? CloudAPIKey { get; set; }
+            public string? CloudAPIEndpoint { get; set; }
+        }
+
+        public class SettingsChangedEventArgs : EventArgs
+        {
+            public AppSettings Settings { get; }
+            public SettingsChangedEventArgs(AppSettings settings)
+            {
+                Settings = settings;
+            }
+        }
+
+        // 字段定义
+        private readonly AppSettings _currentSettings;
+        private ScriptEditForm? _scriptEditForm;
+        private ScriptPlayerForm? _scriptPlayerForm;
+        private AIManagerForm? _aiManagerForm;
+        private readonly ScriptService _scriptService;
+        private readonly AIService _aiService;
+
+        // UI控件字段
+        private TextBox txtStreamAddress = null!;
+        private TextBox txtWebSocketAddress = null!;
+        private Button btnChromaKeyColor = null!;
+        private NumericUpDown numChromaKeyTolerance = null!;
+        private CheckBox chkTopMost = null!;
+        private CheckBox chkClickThrough = null!;
+        private NumericUpDown numWidth = null!;
+        private NumericUpDown numHeight = null!;
+        private ComboBox cboVoices = null!;
+        private TrackBar trkRate = null!;
+        private TrackBar trkVolume = null!;
+        private TextBox txtModelPath = null!;
+        private TextBox txtKnowledgeBasePath = null!;
+        private CheckBox chkUseGPU = null!;
+        private CheckBox chkEnableCloudFallback = null!;
+        private TextBox txtCloudAPIKey = null!;
+        private TextBox txtCloudAPIEndpoint = null!;
+        private Button btnAIManager = null!;
+        private Button btnScriptManager = null!;
+        private Button btnScriptPlayer = null!;
+
+        public SettingsForm(AppSettings initialSettings)
+        {
+            _currentSettings = initialSettings;
+            
+            // 添加窗体关闭事件处理
+            this.FormClosing += (s, e) => {
+                if (e.CloseReason == CloseReason.UserClosing)
+                {
+                    e.Cancel = true;  // 取消关闭
+                    this.Hide();      // 改为隐藏
+                }
+            };
+            
+            try
+            {
+                // 初始化服务
+                var speechService = new SpeechService();
+                _scriptService = new ScriptService(
+                    Program.WebSocketClient,
+                    speechService
+                );
+
+                _aiService = new AIService(
+                    Program.WebSocketClient,
+                    new AIServiceConfig
+                    {
+                        ModelPath = Path.Combine(Application.StartupPath, "models", "model.onnx"),
+                        KnowledgeBasePath = Path.Combine(Application.StartupPath, "data", "knowledge.json"),
+                        UseGPU = false,
+                        EnableCloudFallback = false
+                    }
+                );
+
+                InitializeComponent();
+                LoadSettingsToUI(_currentSettings);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("初始化SettingsForm失败", ex);
+                MessageBox.Show(
+                    "初始化设置窗口时发生错误。\n" +
+                    "请检查系统音频设备是否正常。\n\n" +
+                    $"详细信息：{ex.Message}",
+                    "初始化错误",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                throw;
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = "设置";
+            this.Size = new Size(600, 800);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+
+            var tabControl = new TabControl
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Point(10, 10)
+            };
+
+            // 数字人显示设置页
+            var tabDisplay = new TabPage("显示设置");
+            var pnlDisplay = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+            
+            // 推流地址
+            var lblStreamAddress = new Label { Text = "推流地址:", Location = new Point(10, 20), AutoSize = true };
+            txtStreamAddress = new TextBox { Location = new Point(120, 17), Width = 400 };
+            
+            // WebSocket服务器地址
+            var lblWebSocketAddress = new Label { Text = "WebSocket地址:", Location = new Point(10, 50), AutoSize = true };
+            txtWebSocketAddress = new TextBox { Location = new Point(120, 47), Width = 400 };
+            
+            // 抠像设置
+            var grpChromaKey = new GroupBox { Text = "抠像设置", Location = new Point(10, 80), Size = new Size(540, 100) };
+            btnChromaKeyColor = new Button { Text = "选择背景色", Location = new Point(10, 25), Width = 100 };
+            var lblTolerance = new Label { Text = "容差:", Location = new Point(120, 27), AutoSize = true };
+            numChromaKeyTolerance = new NumericUpDown 
+            { 
+                Location = new Point(170, 25), 
+                Width = 60,
+                Minimum = 0,
+                Maximum = 100,
+                Value = 30
+            };
+            
+            grpChromaKey.Controls.AddRange(new Control[] { btnChromaKeyColor, lblTolerance, numChromaKeyTolerance });
+            
+            // 窗口设置
+            var grpWindow = new GroupBox { Text = "窗口设置", Location = new Point(10, 190), Size = new Size(540, 120) };
+            chkTopMost = new CheckBox { Text = "窗口置顶", Location = new Point(10, 25), AutoSize = true };
+            chkClickThrough = new CheckBox { Text = "点击穿透", Location = new Point(120, 25), AutoSize = true };
+            
+            var lblSize = new Label { Text = "窗口大小:", Location = new Point(10, 55), AutoSize = true };
+            var lblWidth = new Label { Text = "宽度:", Location = new Point(80, 55), AutoSize = true };
+            numWidth = new NumericUpDown 
+            { 
+                Location = new Point(120, 53), 
+                Width = 60,
+                Minimum = 100,
+                Maximum = 1920,
+                Value = 800
+            };
+            var lblHeight = new Label { Text = "高度:", Location = new Point(200, 55), AutoSize = true };
+            numHeight = new NumericUpDown 
+            { 
+                Location = new Point(240, 53), 
+                Width = 60,
+                Minimum = 100,
+                Maximum = 1080,
+                Value = 600
+            };
+            
+            grpWindow.Controls.AddRange(new Control[] 
+            { 
+                chkTopMost, chkClickThrough, 
+                lblSize, lblWidth, numWidth, 
+                lblHeight, numHeight 
+            });
+            
+            pnlDisplay.Controls.AddRange(new Control[] 
+            {
+                lblStreamAddress, txtStreamAddress,
+                lblWebSocketAddress, txtWebSocketAddress,
+                grpChromaKey, grpWindow
+            });
+            
+            tabDisplay.Controls.Add(pnlDisplay);
+            
+            // TTS设置页
+            var tabTTS = new TabPage("语音设置");
+            var pnlTTS = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+            
+            var lblVoice = new Label { Text = "语音:", Location = new Point(10, 20), AutoSize = true };
+            cboVoices = new ComboBox { Location = new Point(120, 17), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            
+            var lblRate = new Label { Text = "语速:", Location = new Point(10, 50), AutoSize = true };
+            trkRate = new TrackBar 
+            { 
+                Location = new Point(120, 47), 
+                Width = 200,
+                Minimum = -10,
+                Maximum = 10
+            };
+            
+            var lblVolume = new Label { Text = "音量:", Location = new Point(10, 80), AutoSize = true };
+            trkVolume = new TrackBar 
+            { 
+                Location = new Point(120, 77), 
+                Width = 200,
+                Minimum = 0,
+                Maximum = 100,
+                Value = 100
+            };
+            
+            pnlTTS.Controls.AddRange(new Control[] 
+            {
+                lblVoice, cboVoices,
+                lblRate, trkRate,
+                lblVolume, trkVolume
+            });
+            
+            tabTTS.Controls.Add(pnlTTS);
+            
+            // AI设置页
+            var tabAI = new TabPage("AI设置");
+            var pnlAI = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+            
+            var lblModelPath = new Label { Text = "模型路径:", Location = new Point(10, 20), AutoSize = true };
+            txtModelPath = new TextBox { Location = new Point(120, 17), Width = 400 };
+            
+            var lblKnowledgeBasePath = new Label { Text = "知识库路径:", Location = new Point(10, 50), AutoSize = true };
+            txtKnowledgeBasePath = new TextBox { Location = new Point(120, 47), Width = 400 };
+            
+            chkUseGPU = new CheckBox { Text = "启用GPU加速", Location = new Point(10, 80), AutoSize = true };
+            chkEnableCloudFallback = new CheckBox { Text = "启用云端回退", Location = new Point(10, 110), AutoSize = true };
+            
+            var lblCloudAPIKey = new Label { Text = "API密钥:", Location = new Point(30, 140), AutoSize = true };
+            txtCloudAPIKey = new TextBox { Location = new Point(120, 137), Width = 400 };
+            
+            var lblCloudAPIEndpoint = new Label { Text = "API地址:", Location = new Point(30, 170), AutoSize = true };
+            txtCloudAPIEndpoint = new TextBox { Location = new Point(120, 167), Width = 400 };
+            
+            // AI管理按钮
+            btnAIManager = new Button { Text = "AI管理", Location = new Point(10, 200), Width = 100 };
+            btnAIManager.Click += BtnAIManager_Click;
+            
+            pnlAI.Controls.AddRange(new Control[] 
+            {
+                lblModelPath, txtModelPath,
+                lblKnowledgeBasePath, txtKnowledgeBasePath,
+                chkUseGPU, chkEnableCloudFallback,
+                lblCloudAPIKey, txtCloudAPIKey,
+                lblCloudAPIEndpoint, txtCloudAPIEndpoint,
+                btnAIManager
+            });
+            
+            tabAI.Controls.Add(pnlAI);
+            
+            // 讲解词管理页
+            var tabScript = new TabPage("讲解词管理");
+            var pnlScript = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
+            
+            // 讲解词编辑和播放按钮
+            btnScriptManager = new Button { Text = "讲解词编辑", Location = new Point(10, 20), Width = 100 };
+            btnScriptManager.Click += BtnScriptManager_Click;
+            
+            btnScriptPlayer = new Button { Text = "播放控制", Location = new Point(120, 20), Width = 100 };
+            btnScriptPlayer.Click += BtnScriptPlayer_Click;
+            
+            pnlScript.Controls.AddRange(new Control[] { btnScriptManager, btnScriptPlayer });
+            
+            tabScript.Controls.Add(pnlScript);
+            
+            // 添加所有标签页
+            tabControl.TabPages.AddRange(new TabPage[] { tabDisplay, tabTTS, tabAI, tabScript });
+            
+            // 添加保存按钮
+            var btnSave = new Button 
+            { 
+                Text = "保存",
+                Dock = DockStyle.Bottom,
+                Height = 30
+            };
+            btnSave.Click += BtnSave_Click;
+            
+            this.Controls.AddRange(new Control[] { tabControl, btnSave });
+            
+            // 事件处理
+            btnChromaKeyColor.Click += (s, e) =>
+            {
+                using var colorDialog = new ColorDialog();
+                if (colorDialog.ShowDialog() == DialogResult.OK)
+                {
+                    btnChromaKeyColor.BackColor = colorDialog.Color;
+                }
+            };
+            
+            chkEnableCloudFallback.CheckedChanged += (s, e) =>
+            {
+                txtCloudAPIKey.Enabled = chkEnableCloudFallback.Checked;
+                txtCloudAPIEndpoint.Enabled = chkEnableCloudFallback.Checked;
+            };
+        }
+
+        private void LoadSettingsToUI(AppSettings settings)
+        {
+            txtStreamAddress.Text = settings.StreamAddress;
+            txtWebSocketAddress.Text = settings.WebSocketServerAddress;
+            btnChromaKeyColor.BackColor = settings.ChromaKeyColor;
+            numChromaKeyTolerance.Value = settings.ChromaKeyTolerance;
+            chkTopMost.Checked = settings.TopMostEnabled;
+            chkClickThrough.Checked = settings.ClickThroughEnabled;
+            numWidth.Value = settings.WindowWidth;
+            numHeight.Value = settings.WindowHeight;
+            cboVoices.Text = settings.TtsVoiceName;
+            trkRate.Value = settings.TtsRate;
+            trkVolume.Value = settings.TtsVolume;
+            txtModelPath.Text = settings.ModelPath;
+            txtKnowledgeBasePath.Text = settings.KnowledgeBasePath;
+            chkUseGPU.Checked = settings.UseGPU;
+            chkEnableCloudFallback.Checked = settings.EnableCloudFallback;
+            txtCloudAPIKey.Text = settings.CloudAPIKey ?? string.Empty;
+            txtCloudAPIEndpoint.Text = settings.CloudAPIEndpoint ?? string.Empty;
+        }
+
+        private void SaveSettingsFromUI(AppSettings settings)
+        {
+            settings.StreamAddress = txtStreamAddress.Text;
+            settings.WebSocketServerAddress = txtWebSocketAddress.Text;
+            settings.ChromaKeyColor = btnChromaKeyColor.BackColor;
+            settings.ChromaKeyTolerance = (int)numChromaKeyTolerance.Value;
+            settings.TopMostEnabled = chkTopMost.Checked;
+            settings.ClickThroughEnabled = chkClickThrough.Checked;
+            settings.WindowWidth = (int)numWidth.Value;
+            settings.WindowHeight = (int)numHeight.Value;
+            settings.TtsVoiceName = cboVoices.Text;
+            settings.TtsRate = trkRate.Value;
+            settings.TtsVolume = trkVolume.Value;
+            settings.ModelPath = txtModelPath.Text;
+            settings.KnowledgeBasePath = txtKnowledgeBasePath.Text;
+            settings.UseGPU = chkUseGPU.Checked;
+            settings.EnableCloudFallback = chkEnableCloudFallback.Checked;
+            settings.CloudAPIKey = txtCloudAPIKey.Text;
+            settings.CloudAPIEndpoint = txtCloudAPIEndpoint.Text;
+        }
+
+        private void BtnSave_Click(object? sender, EventArgs e)
+        {
+            SaveSettingsFromUI(_currentSettings);
+            // 触发设置更改事件
+            SettingsChanged?.Invoke(this, new SettingsChangedEventArgs(_currentSettings));
+            MessageBox.Show("设置已保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            this.Hide(); // 保存后隐藏窗口
+        }
+
+        private void BtnScriptManager_Click(object? sender, EventArgs e)
+        {
+            if (_scriptEditForm == null || _scriptEditForm.IsDisposed)
+            {
+                _scriptEditForm = new ScriptEditForm(_scriptService);
+            }
+            _scriptEditForm.Show();
+            if (_scriptEditForm.WindowState == FormWindowState.Minimized)
+            {
+                _scriptEditForm.WindowState = FormWindowState.Normal;
+            }
+            _scriptEditForm.BringToFront();
+        }
+
+        private void BtnScriptPlayer_Click(object? sender, EventArgs e)
+        {
+            if (_scriptPlayerForm == null || _scriptPlayerForm.IsDisposed)
+            {
+                _scriptPlayerForm = new ScriptPlayerForm(_scriptService);
+            }
+            _scriptPlayerForm.Show();
+            if (_scriptPlayerForm.WindowState == FormWindowState.Minimized)
+            {
+                _scriptPlayerForm.WindowState = FormWindowState.Normal;
+            }
+            _scriptPlayerForm.BringToFront();
+        }
+
+        private void BtnAIManager_Click(object? sender, EventArgs e)
+        {
+            if (_aiManagerForm == null || _aiManagerForm.IsDisposed)
+            {
+                _aiManagerForm = new AIManagerForm(_aiService);
+            }
+            _aiManagerForm.Show();
+            if (_aiManagerForm.WindowState == FormWindowState.Minimized)
+            {
+                _aiManagerForm.WindowState = FormWindowState.Normal;
+            }
+            _aiManagerForm.BringToFront();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _scriptEditForm?.Dispose();
+                _scriptPlayerForm?.Dispose();
+                _scriptService.Dispose();
+                _aiService.Dispose();
+                _aiManagerForm?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}

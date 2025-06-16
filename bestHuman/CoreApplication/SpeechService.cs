@@ -14,36 +14,38 @@ namespace CoreApplication
         public event EventHandler<string>? OnSpeechRecognized;
         public event EventHandler? OnSpeechSynthesisStarted;
         public event EventHandler? OnSpeechSynthesisEnded;
-        public event EventHandler<string>? OnError;
-
-        public SpeechService()
+        public event EventHandler<string>? OnError;        public SpeechService()
         {
+            // 初始化语音合成器（这个通常不需要音频输入设备）
             try
             {
-                // 初始化语音合成器（这个通常不需要音频输入设备）
                 _synthesizer = new SpeechSynthesizer();
                 _synthesizer.SpeakStarted += Synthesizer_SpeakStarted;
                 _synthesizer.SpeakCompleted += Synthesizer_SpeakCompleted;
-
-                // 初始化语音识别引擎
-                try
-                {
-                    _recognitionEngine = new SpeechRecognitionEngine();
-                    _recognitionEngine.SetInputToDefaultAudioDevice(); // 设置默认音频输入设备
-                    _recognitionEngine.SpeechRecognized += RecognitionEngine_SpeechRecognized;
-                    _recognitionEngine.SpeechRecognitionRejected += RecognitionEngine_SpeechRecognitionRejected;
-                    _recognitionEngine.RecognizeCompleted += RecognitionEngine_RecognizeCompleted;
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning($"语音识别初始化失败（可能是因为没有麦克风）: {ex.Message}");
-                    _recognitionEngine = null; // 将引擎设为null以表示初始化失败
-                }
             }
             catch (Exception ex)
             {
-                Logger.LogError($"语音服务初始化失败: {ex.Message}", ex);
-                throw; // 如果连语音合成器都初始化失败，则抛出异常
+                Logger.LogWarning($"语音合成初始化失败: {ex.Message}");
+                _synthesizer = null; // 将合成器设为null以表示初始化失败
+            }
+
+            // 初始化语音识别引擎
+            try
+            {
+                _recognitionEngine = new SpeechRecognitionEngine();
+                _recognitionEngine.SetInputToDefaultAudioDevice(); // 设置默认音频输入设备
+                _recognitionEngine.SpeechRecognized += RecognitionEngine_SpeechRecognized;
+                _recognitionEngine.SpeechRecognitionRejected += RecognitionEngine_SpeechRecognitionRejected;
+                _recognitionEngine.RecognizeCompleted += RecognitionEngine_RecognizeCompleted;
+                
+                // 添加语音识别规则
+                _recognitionEngine.LoadGrammar(new DictationGrammar());
+                Logger.LogInfo("语音识别引擎初始化成功。");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"语音识别初始化失败（可能是因为没有麦克风）: {ex.Message}");
+                _recognitionEngine = null; // 将引擎设为null以表示初始化失败
             }
         }
 
@@ -183,10 +185,13 @@ namespace CoreApplication
         public void StopSpeaking()
         {
             _synthesizer?.SpeakAsyncCancelAll();
-        }
-
-        public VoiceInfo[] GetAvailableVoices()
+        }        public VoiceInfo[] GetAvailableVoices()
         {
+            if (_synthesizer == null)
+            {
+                Logger.LogWarning("语音合成器未初始化，无法获取可用语音。");
+                return Array.Empty<VoiceInfo>();
+            }
             return _synthesizer.GetInstalledVoices().Select(v => v.VoiceInfo).ToArray();
         }
 

@@ -1,0 +1,319 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+using System.Threading.Tasks;
+
+namespace CoreApplication
+{
+    public class DigitalHumanDisplay : Panel
+    {
+        private Color _chromaKeyColor = Color.Green; // 默认抠像颜色为绿色
+        private int _tolerance = 30; // 默认颜色容差
+        private bool _enableChromaKey = false; // 默认禁用抠像功能，避免影响性能
+        private WebView2? _webView;
+        private string? _streamUrl;
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool EnableChromaKey
+        {
+            get { return _enableChromaKey; }
+            set { _enableChromaKey = value; }
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color ChromaKeyColor
+        {
+            get { return _chromaKeyColor; }
+            set { _chromaKeyColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public int Tolerance
+        {
+            get { return _tolerance; }
+            set { _tolerance = value; Invalidate(); }
+        }
+
+        public DigitalHumanDisplay()
+        {
+            DoubleBuffered = true; // 启用双缓冲，减少闪烁
+            SetStyle(ControlStyles.SupportsTransparentBackColor | 
+                    ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint, true);
+            
+            // 关键修复：控件始终保持透明，让主窗口的透明生效
+            BackColor = Color.Transparent;
+            
+            InitializeWebView();
+        }
+
+        private async void InitializeWebView()
+        {
+            try
+            {
+                // 控件背景保持透明，不设置任何颜色
+                _webView = new WebView2
+                {
+                    Dock = DockStyle.Fill
+                };
+                
+                // WebView2背景设为透明
+                _webView.DefaultBackgroundColor = Color.Transparent;
+                
+                Controls.Add(_webView);
+                await _webView.EnsureCoreWebView2Async();
+
+                // WebView2配置
+                var settings = _webView.CoreWebView2.Settings;
+                settings.IsWebMessageEnabled = true;
+                settings.AreDefaultContextMenusEnabled = false;
+                settings.IsStatusBarEnabled = false;
+                
+                Logger.LogInfo("WebView2透明背景配置完成");
+                Logger.LogInfo("WebView2 初始化完成");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"初始化WebView2失败: {ex.Message}", ex);
+            }
+        }
+
+        public void SetStreamUrl(string url)
+        {
+            _streamUrl = url;
+            Logger.LogInfo($"设置流URL: {url}");
+            if (_webView?.CoreWebView2 != null)
+            {
+                try 
+                {
+                    _webView.CoreWebView2.Navigate(url);
+                    Logger.LogInfo("成功导航到流URL");
+                    
+                    // 等待页面加载完成后启用调试
+                    _webView.CoreWebView2.NavigationCompleted += async (sender, args) =>
+                    {
+                        if (args.IsSuccess)
+                        {
+                            Logger.LogInfo("页面导航完成，启用调试模式");
+                            await Task.Delay(1000); // 等待页面稳定
+                            await SetupWebView2DebuggingAsync();
+                            
+                            // 如果抠像已启用，重新应用
+                            if (_enableChromaKey)
+                            {
+                                Logger.LogInfo("页面加载完成，重新应用抠像效果");
+                                await Task.Delay(500);
+                                InjectChromaKeyScript(true);
+                            }
+                        }
+                        else
+                        {
+                            Logger.LogError("页面导航失败");
+                        }
+                    };
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError($"导航到流URL失败: {ex.Message}", ex);
+                }
+            }
+        }
+
+        public void SetChromaKeyEnabled(bool enabled)
+        {
+            _enableChromaKey = enabled;
+            Logger.LogInfo($"抠像功能已{(enabled ? "启用" : "禁用")}");
+            
+            // 控件始终保持透明背景，不设置绿色
+            // 抠像处理完全在WebView2的JavaScript中完成
+            
+            if (_webView?.CoreWebView2 != null)
+            {
+                // 注入抠像处理JavaScript
+                InjectChromaKeyScript(enabled);
+            }
+            
+            this.Invalidate();
+        }
+
+        private async void InjectChromaKeyScript(bool enabled)
+        {
+            if (_webView?.CoreWebView2 == null) return;
+            
+            try
+            {
+                string script;
+                if (enabled)
+                {
+                    // 注入真正的客户端抠像JavaScript
+                    script = @"
+                        (function() {
+                            // 移除之前的抠像处理
+                            const existingCanvas = document.getElementById('chroma-canvas');
+                            if (existingCanvas) existingCanvas.remove();
+                            
+                            const existingStyle = document.getElementById('chroma-style');
+                            if (existingStyle) existingStyle.remove();
+                            
+                            // 查找视频元素
+                            const video = document.querySelector('video');
+                            if (!video) {
+                                console.log('未找到视频元素，无法进行抠像处理');
+                                return;
+                            }
+                            
+                            // 创建Canvas用于抠像处理
+                            const canvas = document.createElement('canvas');
+                            canvas.id = 'chroma-canvas';
+                            canvas.style.position = 'absolute';
+                            canvas.style.top = '0';
+                            canvas.style.left = '0';
+                            canvas.style.width = '100%';
+                            canvas.style.height = '100%';
+                            canvas.style.zIndex = '999';
+                            canvas.style.pointerEvents = 'none';
+                            
+                            const ctx = canvas.getContext('2d');
+                            document.body.appendChild(canvas);
+                            
+                            // 隐藏原始视频
+                            video.style.opacity = '0';
+                            
+                            // 抠像处理函数
+                            function processChromaKey() {
+                                canvas.width = video.videoWidth || video.offsetWidth;
+                                canvas.height = video.videoHeight || video.offsetHeight;
+                                
+                                if (video.videoWidth === 0 || video.videoHeight === 0) return;
+                                
+                                // 绘制视频帧到Canvas
+                                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                
+                                // 获取像素数据
+                                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                const data = imageData.data;
+                                
+                                // 抠像处理：将绿色像素设为透明
+                                for (let i = 0; i < data.length; i += 4) {
+                                    const r = data[i];
+                                    const g = data[i + 1];
+                                    const b = data[i + 2];
+                                    
+                                    // 检测绿色（容差范围内）
+                                    if (g > 100 && g > r + 50 && g > b + 50) {
+                                        data[i + 3] = 0; // 设为透明
+                                    }
+                                }
+                                
+                                // 将处理后的数据绘制回Canvas
+                                ctx.putImageData(imageData, 0, 0);
+                                
+                                // 继续处理下一帧
+                                requestAnimationFrame(processChromaKey);
+                            }
+                            
+                            // 等待视频加载后开始处理
+                            video.addEventListener('loadeddata', function() {
+                                console.log('视频加载完成，开始抠像处理');
+                                processChromaKey();
+                            });
+                            
+                            // 如果视频已经加载，立即开始
+                            if (video.readyState >= 2) {
+                                processChromaKey();
+                            }
+                            
+                            console.log('抠像脚本已注入');
+                        })();
+                    ";
+                }
+                else
+                {
+                    // 禁用抠像：移除Canvas，显示原始视频
+                    script = @"
+                        (function() {
+                            const canvas = document.getElementById('chroma-canvas');
+                            if (canvas) canvas.remove();
+                            
+                            const video = document.querySelector('video');
+                            if (video) {
+                                video.style.opacity = '1';
+                            }
+                            
+                            console.log('抠像处理已禁用');
+                        })();
+                    ";
+                }
+                
+                await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                Logger.LogInfo($"抠像脚本: {(enabled ? "启用" : "禁用")} - JavaScript处理完成");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"注入抠像脚本失败: {ex.Message}", ex);
+            }
+        }
+
+        private async Task SetupWebView2DebuggingAsync()
+        {
+            if (_webView?.CoreWebView2 == null) return;
+            
+            try
+            {
+                // 注入调试脚本
+                string debugScript = @"
+                    // 添加调试功能
+                    console.log('WebView2 调试模式已启用');
+                    
+                    // 监听页面错误
+                    window.addEventListener('error', function(e) {
+                        console.error('页面错误:', e.message, e.filename, e.lineno);
+                    });
+                    
+                    // 监听DOM变化
+                    if (typeof MutationObserver !== 'undefined') {
+                        const observer = new MutationObserver(function(mutations) {
+                            mutations.forEach(function(mutation) {
+                                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                                    console.log('DOM元素已添加:', mutation.addedNodes);
+                                }
+                            });
+                        });
+                        observer.observe(document.body, { childList: true, subtree: true });
+                    }
+                ";
+                
+                await _webView.CoreWebView2.ExecuteScriptAsync(debugScript);
+                Logger.LogInfo("WebView2调试脚本已注入");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"设置WebView2调试失败: {ex.Message}", ex);
+            }
+        }
+
+        // 重写Paint方法，确保透明效果
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            // 不绘制任何背景，保持完全透明
+            // base.OnPaint(e); 不调用基类绘制
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.BackgroundImage?.Dispose();
+                _webView?.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}
