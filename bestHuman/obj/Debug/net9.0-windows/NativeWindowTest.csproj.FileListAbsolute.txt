@@ -1,0 +1,5 @@
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\NativeWindowTest.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\NativeWindowTest.AssemblyInfoInputs.cache
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\NativeWindowTest.AssemblyInfo.cs
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\NativeWindowTest.csproj.CoreCompileInputs.cache
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\NativeWindowTest.sourcelink.json

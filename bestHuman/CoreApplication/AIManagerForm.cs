@@ -1,12 +1,17 @@
 using System;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Threading.Tasks; // Added for async operations
 
 namespace CoreApplication
 {
     public partial class AIManagerForm : Form
-    {
-        private readonly AIService _aiService;
+    {        private readonly AIService _aiService;
+        private readonly SettingsForm.AppSettings _appSettings; // Store app settings
+        private DigitalHumanDisplay _digitalHumanDisplayControl = null!; // Initialized in constructor path
+        // 暂时注释掉原生窗口引用，避免编译错误
+        // private NativeLayeredWindow? _nativeLayeredWindowInstance = null; // Instance of the native window if used
+
         private TextBox? _txtModelPath;
         private TextBox? _txtKnowledgeBasePath;
         private CheckBox? _chkUseGPU;
@@ -23,14 +28,114 @@ namespace CoreApplication
         private Label? _lblVocabSize;
         private Label? _lblInputShape;
 
-        public AIManagerForm(AIService aiService)
+        // Constructor updated to accept AppSettings
+        public AIManagerForm(AIService aiService, SettingsForm.AppSettings appSettings)
         {
             _aiService = aiService;
-            InitializeComponent();
+            _appSettings = appSettings; // Store the settings
 
-            // 订阅事件
+            InitializeComponent(); // Initialize standard components
+            // _digitalHumanDisplayControl will be initialized by InitializeDigitalHumanDisplay
+            InitializeDigitalHumanDisplaySyncPart(); 
+            // Then call the async part without awaiting in constructor, or make constructor async if appropriate.
+            // For simplicity, let's assume InitializeDigitalHumanDisplay handles its async parts internally or via Form_Load.
+            // If InitializeDigitalHumanDisplay must be fully async and awaited, AIManagerForm creation needs to be async.
+            // Alternative: Call the async part in Form_Load or a similar event.
+            this.Load += async (s, e) => await InitializeDigitalHumanDisplayAsyncPart();
+
+            // Subscribe to events
             _aiService.OnAIResponse += AIService_OnAIResponse;
             _aiService.OnError += AIService_OnError;
+        }
+
+        private void InitializeDigitalHumanDisplaySyncPart()
+        {
+            _digitalHumanDisplayControl = new DigitalHumanDisplay();
+        }
+
+        private async Task InitializeDigitalHumanDisplayAsyncPart()
+        {
+            // ApplyDisplayMode will handle whether to use WebView or Native Window
+            await _digitalHumanDisplayControl.ApplyDisplayMode(_appSettings.UseNativeLayeredWindow, _appSettings);            // 暂时注释掉原生窗口逻辑，因为现在由 Program.cs 主窗口处理
+            /*
+            if (_appSettings.UseNativeLayeredWindow)
+            {
+                _nativeLayeredWindowInstance = _digitalHumanDisplayControl.GetNativeWindow();
+                if (_nativeLayeredWindowInstance != null)
+                {
+                    _nativeLayeredWindowInstance.Size = new Size(_appSettings.WindowWidth, _appSettings.WindowHeight);
+                    if (_appSettings.WindowX != -1 && _appSettings.WindowY != -1)
+                    {
+                        _nativeLayeredWindowInstance.Location = new Point(_appSettings.WindowX, _appSettings.WindowY);
+                    }
+                    else
+                    {
+                        _nativeLayeredWindowInstance.StartPosition = FormStartPosition.CenterScreen;
+                    }
+                    _nativeLayeredWindowInstance.TopMost = _appSettings.TopMostEnabled;
+                    _nativeLayeredWindowInstance.Show();
+                    _nativeLayeredWindowInstance.FormClosed += (s, e) => { _nativeLayeredWindowInstance = null; }; 
+                    Logger.LogInfo("NativeLayeredWindow shown and configured.");
+                }
+                else
+                {
+                    Logger.LogError("Failed to get NativeLayeredWindow instance from DigitalHumanDisplay.");
+                    MessageBox.Show("无法初始化原生透明窗口。将回退到 WebView2 模式。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    _appSettings.UseNativeLayeredWindow = false;
+                    await _digitalHumanDisplayControl.ApplyDisplayMode(false, _appSettings);
+                    InitializeWebViewDisplay(); 
+                }
+            }
+            */            if (!_appSettings.UseNativeLayeredWindow)
+            {
+                InitializeWebViewDisplay();
+            }
+        }
+
+        private void InitializeWebViewDisplay()
+        {
+            // Setup for WebView2 display (if _digitalHumanDisplayControl is part of this form's UI)
+            // This assumes _digitalHumanDisplayControl is a UserControl placed on AIManagerForm.
+            // If AIManagerForm is just a controller, this part might be different.
+            // _digitalHumanDisplayControl.Dock = DockStyle.Fill; // Example: if it fills a panel
+            // Add _digitalHumanDisplayControl to a panel or directly to the form if it's meant to be visible here.
+            // For example: this.pnlDisplayArea.Controls.Add(_digitalHumanDisplayControl);
+            
+            // If AIManagerForm is *itself* the main window that shows the human, then its size etc. should be set.
+            // This form (AIManagerForm) is for AI *management*, not the display itself.
+            // The DigitalHumanDisplay control or NativeLayeredWindow should be hosted by the *main application form* (e.g., Program.cs might create a main form).
+            // For now, we assume AIManagerForm is NOT the main display window.
+            // If it IS, then the following lines would apply to `this` (AIManagerForm).
+            /*
+            this.Size = new Size(_appSettings.WindowWidth, _appSettings.WindowHeight);
+            if (_appSettings.WindowX != -1 && _appSettings.WindowY != -1)
+            {
+                this.Location = new Point(_appSettings.WindowX, _appSettings.WindowY);
+            }
+            this.TopMost = _appSettings.TopMostEnabled;
+            */
+            Logger.LogInfo("WebView2 display mode active. Display control is ready for hosting.");
+        }        // Example method to simulate receiving video frames for native window
+        public void ProcessNewVideoFrame(Bitmap frame)
+        {
+            // 暂时注释掉原生窗口帧更新逻辑
+            /*
+            if (_appSettings.UseNativeLayeredWindow && _nativeLayeredWindowInstance != null && _nativeLayeredWindowInstance.IsHandleCreated)
+            {
+                _nativeLayeredWindowInstance.UpdateFrame(frame);
+            }
+            else if (!_appSettings.UseNativeLayeredWindow && _digitalHumanDisplayControl != null)
+            {
+                // If WebView2 mode needs frame updates (e.g., local video source not URL)
+                // _digitalHumanDisplayControl.UpdateWebViewFrame(frame); // Hypothetical method
+            }
+            */
+            
+            if (!_appSettings.UseNativeLayeredWindow && _digitalHumanDisplayControl != null)
+            {
+                // If WebView2 mode needs frame updates (e.g., local video source not URL)
+                // _digitalHumanDisplayControl.UpdateWebViewFrame(frame); // Hypothetical method
+            }
         }
 
         private void InitializeComponent()
@@ -78,9 +183,10 @@ namespace CoreApplication
             var grpPaths = new GroupBox
             {
                 Text = "路径配置",
-                Location = new Point(10, 10),
+                Location = new Point(10, 10), // Adjusted: This will overlap with _grpModelInfo if visible
                 Size = new Size(560, 100)
             };
+            // If _grpModelInfo is shown, grpPaths should be placed below it, e.g., new Point(10, 120)
 
             var lblModelPath = new Label
             {
@@ -129,7 +235,7 @@ namespace CoreApplication
             var grpSettings = new GroupBox
             {
                 Text = "设置",
-                Location = new Point(10, 120),
+                Location = new Point(10, 120), // Adjusted: Assumes grpPaths is at (10,10)
                 Size = new Size(560, 100)
             };
 
@@ -228,8 +334,8 @@ namespace CoreApplication
 
             this.Controls.AddRange(new Control[]
             {
-                _grpModelInfo,
-                grpPaths,
+                _grpModelInfo, // This should be added first if it's at the top
+                grpPaths,      // Then this one
                 grpSettings,
                 _btnInitialize,
                 _btnImportKnowledge,
@@ -287,17 +393,26 @@ namespace CoreApplication
                 _progressLoading.Visible = true;
                 _lblStatus.Text = "正在初始化AI服务...";
 
-                var config = new AIServiceConfig
-                {
-                    ModelPath = _txtModelPath?.Text ?? "",
-                    KnowledgeBasePath = _txtKnowledgeBasePath?.Text ?? "",
-                    UseGPU = _chkUseGPU?.Checked ?? false,
-                    EnableCloudFallback = _chkEnableCloudFallback?.Checked ?? false,
-                    CloudAPIKey = _txtCloudAPIKey?.Text,
-                    CloudAPIEndpoint = _txtCloudEndpoint?.Text
-                };
+                // AIService constructor now takes the config, and InitializeAsync takes no parameters.
+                // We assume _aiService is already constructed with the initial or default config.
+                // If config can change and re-initialization is needed, AIService might need a ReinitializeAsync(newConfig) method,
+                // or be disposed and recreated.
+                // For now, let's assume the config passed to AIManagerForm's constructor was used for AIService construction.
+                // And if these UI elements are for *changing* that config, then AIService needs a way to update.
 
-                await _aiService.InitializeAsync();
+                // Option 1: If AIService's config is mutable and it has a method to apply new settings from UI
+                // _aiService.UpdateConfiguration(new AIServiceConfig { ... }); 
+                // await _aiService.InitializeAsync();
+
+                // Option 2: If AIService must be recreated with new config (more robust for some changes like model path)
+                // This would mean _aiService in this form needs to be replaceable, or this form shouldn't manage _aiService directly.
+                // For simplicity, let's assume InitializeAsync re-reads its existing _config if called again,
+                // or that the UI here is for the *initial* setup and matches the config AIService was created with.
+                // If the UI is for changing settings, the Program.cs or main controller would need to handle recreating AIService
+                // and potentially AIManagerForm if it depends on a specific AIService instance.
+
+                // Corrected call: InitializeAsync should not take parameters if it uses the config it was constructed with.
+                await _aiService.InitializeAsync(); 
 
                 // 显示模型信息
                 var modelInfo = _aiService.GetModelInfo();
@@ -311,6 +426,10 @@ namespace CoreApplication
                     _lblVocabSize.Text = $"词汇表大小：{modelInfo.TokenizerVocabSize:N0}";
                     _lblInputShape.Text = $"输入形状：{string.Join(", ", modelInfo.InputShapes)}";
                     _grpModelInfo.Visible = true;
+                    // Adjust layout if _grpModelInfo becomes visible
+                    // grpPaths.Location = new Point(10, _grpModelInfo.Bottom + 5);
+                    // grpSettings.Location = new Point(10, grpPaths.Bottom + 5);
+                    // etc. for other controls, or use a FlowLayoutPanel/TableLayoutPanel
                 }
 
                 _lblStatus.Text = "AI服务初始化成功！";
@@ -322,8 +441,8 @@ namespace CoreApplication
             }
             finally
             {
-                _btnInitialize.Enabled = true;
-                _progressLoading.Visible = false;
+                if (_btnInitialize != null) _btnInitialize.Enabled = true;
+                if (_progressLoading != null) _progressLoading.Visible = false;
             }
         }
 
@@ -341,7 +460,6 @@ namespace CoreApplication
                 {
                     string content = await System.IO.File.ReadAllTextAsync(dialog.FileName);
                     
-                    // 创建新的知识条目
                     var entry = new KnowledgeEntry
                     {
                         Question = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName),
@@ -390,14 +508,33 @@ namespace CoreApplication
             }
         }
 
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
+
+        protected override void OnFormClosing(FormClosingEventArgs e)        {
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
                 this.Hide();
+                // _nativeLayeredWindowInstance?.Hide(); // Also hide native window if it exists
             }
             base.OnFormClosing(e);
+        }
+
+        // Ensure to dispose the native window when AIManagerForm is disposed
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                // _nativeLayeredWindowInstance?.Close(); // Close will trigger its Dispose
+                // _nativeLayeredWindowInstance?.Dispose();
+                _digitalHumanDisplayControl?.Dispose();
+                // Unsubscribe from events
+                if (_aiService != null)
+                {
+                    _aiService.OnAIResponse -= AIService_OnAIResponse;
+                    _aiService.OnError -= AIService_OnError;
+                }
+            }
+            base.Dispose(disposing);
         }
     }
 }

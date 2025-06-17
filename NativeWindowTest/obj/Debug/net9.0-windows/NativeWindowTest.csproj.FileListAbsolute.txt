@@ -1,0 +1,15 @@
+D:\Projects\bestHuman\NativeWindowTest\bin\Debug\net9.0-windows\NativeWindowTest.exe
+D:\Projects\bestHuman\NativeWindowTest\bin\Debug\net9.0-windows\NativeWindowTest.deps.json
+D:\Projects\bestHuman\NativeWindowTest\bin\Debug\net9.0-windows\NativeWindowTest.runtimeconfig.json
+D:\Projects\bestHuman\NativeWindowTest\bin\Debug\net9.0-windows\NativeWindowTest.dll
+D:\Projects\bestHuman\NativeWindowTest\bin\Debug\net9.0-windows\NativeWindowTest.pdb
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.AssemblyInfoInputs.cache
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.AssemblyInfo.cs
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.csproj.CoreCompileInputs.cache
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.sourcelink.json
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.dll
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\refint\NativeWindowTest.dll
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.pdb
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\NativeWindowTest.genruntimeconfig.cache
+D:\Projects\bestHuman\NativeWindowTest\obj\Debug\net9.0-windows\ref\NativeWindowTest.dll

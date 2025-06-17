@@ -1,0 +1,5 @@
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\SimpleNativeWindow.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\SimpleNativeWindow.AssemblyInfoInputs.cache
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\SimpleNativeWindow.AssemblyInfo.cs
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\SimpleNativeWindow.csproj.CoreCompileInputs.cache
+D:\Projects\bestHuman\bestHuman\obj\Debug\net9.0-windows\SimpleNativeWindow.sourcelink.json

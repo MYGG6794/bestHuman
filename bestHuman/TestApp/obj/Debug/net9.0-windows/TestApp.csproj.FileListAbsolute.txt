@@ -1,0 +1,15 @@
+D:\Projects\bestHuman\bestHuman\TestApp\bin\Debug\net9.0-windows\TestApp.exe
+D:\Projects\bestHuman\bestHuman\TestApp\bin\Debug\net9.0-windows\TestApp.deps.json
+D:\Projects\bestHuman\bestHuman\TestApp\bin\Debug\net9.0-windows\TestApp.runtimeconfig.json
+D:\Projects\bestHuman\bestHuman\TestApp\bin\Debug\net9.0-windows\TestApp.dll
+D:\Projects\bestHuman\bestHuman\TestApp\bin\Debug\net9.0-windows\TestApp.pdb
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.AssemblyInfoInputs.cache
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.AssemblyInfo.cs
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.csproj.CoreCompileInputs.cache
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.sourcelink.json
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.dll
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\refint\TestApp.dll
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.pdb
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\TestApp.genruntimeconfig.cache
+D:\Projects\bestHuman\bestHuman\TestApp\obj\Debug\net9.0-windows\ref\TestApp.dll

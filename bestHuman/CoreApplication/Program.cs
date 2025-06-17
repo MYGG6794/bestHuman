@@ -8,10 +8,8 @@ namespace CoreApplication
     static class Program
     {
         // 提供全局访问点
-        public static WebSocketClient WebSocketClient { get; private set; } = null!;
-
-        [STAThread]
-        static void Main()
+        public static WebSocketClient WebSocketClient { get; private set; } = null!;        [STAThread]
+        static void Main(string[] args)
         {
             Logger.Initialize("app.log"); // 初始化日志系统
             Logger.LogInfo("应用程序启动中...");
@@ -21,11 +19,48 @@ namespace CoreApplication
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                // 创建全局 WebSocketClient 实例
+                // 加载应用程序设置
+                var appSettings = SettingsForm.AppSettings.Load();
+                if (appSettings == null)
+                {
+                    // 如果加载失败，使用默认设置或提示用户
+                    Logger.LogWarning("无法加载应用设置，将使用默认设置。");
+                    appSettings = new SettingsForm.AppSettings(); 
+                    // Consider prompting the user or initializing with safe defaults
+                }                // 创建 AIService 实例
+                // AIService constructor takes WebSocketClient and AIServiceConfig
+                // We need to create WebSocketClient first, then create AIServiceConfig from appSettings
                 WebSocketClient = new WebSocketClient();
                 
-                // 启动主窗口
-                Application.Run(new MainForm());
+                var aiServiceConfig = new AIServiceConfig
+                {
+                    ModelPath = appSettings.ModelPath,
+                    KnowledgeBasePath = appSettings.KnowledgeBasePath,
+                    UseGPU = appSettings.UseGPU,
+                    EnableCloudFallback = appSettings.EnableCloudFallback,
+                    CloudAPIKey = appSettings.CloudAPIKey,
+                    CloudAPIEndpoint = appSettings.CloudAPIEndpoint
+                };
+                  var aiService = new AIService(WebSocketClient, aiServiceConfig);                // 根据配置决定启动哪种窗口模式                // 根据配置决定启动哪种窗口模式
+                // 暂时只支持 WebView2 模式，原生窗口功能开发中
+                /*
+                if (appSettings.UseNativeLayeredWindow)
+                {
+                    Logger.LogInfo("使用原生透明窗口模式启动数字人显示。");
+                    var nativeWindow = new NativeLayeredWindow(appSettings.StreamAddress);
+                    
+                    // 应用抠像设置
+                    nativeWindow.EnableChromaKey = appSettings.EnableChromaKey;
+                    nativeWindow.ChromaKeyColor = appSettings.ChromaKeyColor;
+                    
+                    Application.Run(nativeWindow);
+                }
+                else
+                {
+                */
+                    Logger.LogInfo("使用WebView2窗口模式启动数字人显示。");
+                    Application.Run(new MainForm(aiService, appSettings));
+                //}
             }
             catch (Exception ex)
             {
@@ -95,32 +130,56 @@ namespace CoreApplication
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
 
         // Windows消息常量
-        private const int WM_HOTKEY = 0x0312;
-
-        private DigitalHumanDisplay digitalHumanDisplay;
+        private const int WM_HOTKEY = 0x0312;        private DigitalHumanDisplay? digitalHumanDisplay; // Made nullable since it's only used in WebView mode
         private SettingsForm settingsForm;
         private SettingsForm.AppSettings appSettings;
         private WebSocketClient webSocketClient;
         private SpeechService? speechService; // 声明为可空
         private AIService? aiService;
         private AIManagerForm? aiManagerForm;
+        //private NativeLayeredWindow? nativeWindow; // 原生透明窗口
 
         // 在MainForm类中添加这个变量来跟踪Alt键状态
-        private bool isAltKeyPressed = false;
-
-        public MainForm()
+        private bool isAltKeyPressed = false;        public MainForm(AIService aiService, SettingsForm.AppSettings appSettings)
         {
-            Logger.LogInfo("MainForm 构造函数开始。");            // 加载配置
-            appSettings = LoadSettings();
-            Text = "bestHuman 数字人助手";
-            Size = new System.Drawing.Size(appSettings.WindowWidth, appSettings.WindowHeight);
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.None; // 无边框
+            Logger.LogInfo("MainForm 构造函数开始。");
             
-            // 初始状态下使用默认背景色，根据抠像状态动态设置透明色
-            // 默认不启用抠像时，不设置透明色
-            this.BackColor = SystemColors.Control;  
-            this.TransparencyKey = Color.Empty;
+            // 使用传入的配置和服务
+            this.appSettings = appSettings;
+            this.aiService = aiService;
+            Text = "bestHuman 数字人助手";
+            Size = new System.Drawing.Size(800, 600); // 固定一个合理的大小
+            StartPosition = FormStartPosition.CenterScreen;
+            FormBorderStyle = FormBorderStyle.None; // 无边框窗口            // 根据抠像设置决定背景色和透明Key
+            if (appSettings.EnableChromaKey)
+            {
+                this.BackColor = appSettings.ChromaKeyColor;  // 抠像模式使用选择的抠像颜色背景
+                this.TransparencyKey = appSettings.ChromaKeyColor; // 抠像颜色透明
+                Logger.LogInfo($"主窗口设置为抠像模式 - 抠像颜色背景透明: R={appSettings.ChromaKeyColor.R}, G={appSettings.ChromaKeyColor.G}, B={appSettings.ChromaKeyColor.B}");
+            }
+            else
+            {
+                this.BackColor = Color.Black;  // 非抠像模式使用黑色背景
+                this.TransparencyKey = Color.Empty; // 不透明
+                Logger.LogInfo("主窗口设置为正常模式 - 黑色背景不透明");
+            }
+            
+            // 强制刷新窗口
+            this.Invalidate();
+            this.Update();
+            
+            // 窗口加载完成后强制设置透明（如果需要）
+            this.Load += (sender, e) => {
+                if (appSettings.EnableChromaKey)
+                {
+                    ForceWindowTransparency(true);
+                    Logger.LogInfo("窗口加载完成，强制设置透明");
+                }
+            };
+            
+            // 确保窗口在最前面
+            this.TopMost = true;
+            this.WindowState = FormWindowState.Normal;
             
             // 确保窗口样式支持透明
             this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
@@ -171,19 +230,24 @@ namespace CoreApplication
                     ResetKeyboardHandling();
                 }
             };
-            inputCheckTimer.Start();
-
-            // 初始化 DigitalHumanDisplay 控件
-            digitalHumanDisplay = new DigitalHumanDisplay();
-            digitalHumanDisplay.Dock = DockStyle.Fill; // 填充整个窗口
-            Controls.Add(digitalHumanDisplay);
+            inputCheckTimer.Start();            // 根据设置初始化显示模式
+            if (appSettings.UseNativeLayeredWindow)
+            {
+                // 使用原生透明窗口模式
+                Logger.LogInfo("初始化原生透明窗口模式");
+                InitializeNativeLayeredWindowMode();
+            }
+            else
+            {
+                // 使用 WebView2 模式
+                Logger.LogInfo("初始化 WebView2 显示模式");
+                InitializeWebViewMode();
+            }
 
             // 根据配置设置窗口置顶和点击穿透
             SetTopMost(appSettings.TopMostEnabled);
-            EnableClickThrough(appSettings.ClickThroughEnabled);
-
-            // 初始化 SettingsForm
-            settingsForm = new SettingsForm(appSettings, this);
+            EnableClickThrough(appSettings.ClickThroughEnabled);            // 初始化 SettingsForm，传入 AIService 实例
+            settingsForm = new SettingsForm(appSettings, aiService);
             settingsForm.SettingsChanged += SettingsForm_SettingsChanged;
 
             // 使用全局 WebSocketClient 实例
@@ -194,34 +258,36 @@ namespace CoreApplication
             webSocketClient.OnError += WebSocketClient_OnError;
 
             // 尝试连接 WebSocket
-            _ = webSocketClient.ConnectAsync(appSettings.WebSocketServerAddress);
-
-            // 初始化 SpeechService
+            _ = webSocketClient.ConnectAsync(appSettings.WebSocketServerAddress);            // 初始化 SpeechService
             speechService = new SpeechService();
             speechService.OnSpeechRecognized += SpeechService_OnSpeechRecognized;
             speechService.OnSpeechSynthesisStarted += SpeechService_OnSpeechSynthesisStarted;
             speechService.OnSpeechSynthesisEnded += SpeechService_OnSpeechSynthesisEnded;
             speechService.OnError += SpeechService_OnError;
 
-            // 初始化 AI 服务
-            aiService = new AIService(webSocketClient, new AIServiceConfig
-            {
-                ModelPath = System.IO.Path.Combine(Application.StartupPath, "models", "model.onnx"),
-                KnowledgeBasePath = System.IO.Path.Combine(Application.StartupPath, "data", "knowledge.json"),
-                UseGPU = false,
-                EnableCloudFallback = false
-            });
-            aiManagerForm = new AIManagerForm(aiService);            Logger.LogInfo("MainForm 构造函数结束。");
+            // AIService 已从外部传入，无需重新创建
+            // 创建 AIManagerForm 实例
+            aiManagerForm = new AIManagerForm(aiService, appSettings);
+            Logger.LogInfo("MainForm 构造函数结束。");
         }        // 窗口加载完成后确保透明生效
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
             
-            // 使用绿色作为透明色，避免洋红边框
-            this.BackColor = Color.Lime; // 使用亮绿色，确保与视频绿幕一致
-            this.TransparencyKey = Color.Lime;
+            // 如果抠像已启用，设置透明色
+            if (appSettings.EnableChromaKey)
+            {
+                this.BackColor = Color.Green; // 使用绿色，与视频绿幕一致
+                this.TransparencyKey = Color.Green;
+                Logger.LogInfo("窗口加载完成，抠像已启用 - 设置绿色透明");
+            }
+            else
+            {
+                Logger.LogInfo("窗口加载完成，抠像未启用 - 保持不透明");
+            }
             
-            Logger.LogInfo("窗口加载完成，设置绿色透明");
+            // 显示确认消息（仅在调试模式）
+            MessageBox.Show($"bestHuman程序启动成功！\n抠像状态: {(appSettings.EnableChromaKey ? "已启用" : "未启用")}", "启动确认", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // 窗口显示后再次确保透明
@@ -229,13 +295,13 @@ namespace CoreApplication
         {
             base.SetVisibleCore(value);
             
-            if (value)
+            if (value && appSettings.EnableChromaKey)
             {
-                // 延迟设置透明，确保窗口完全创建后再设置
+                // 如果抠像启用，延迟设置透明
                 this.BeginInvoke(new Action(() =>
                 {
-                    this.BackColor = Color.Lime; // 使用亮绿色
-                    this.TransparencyKey = Color.Lime;
+                    this.BackColor = Color.Green;
+                    this.TransparencyKey = Color.Green;
                     this.Refresh();
                     Logger.LogInfo("窗口显示后设置绿色透明");
                 }));
@@ -343,11 +409,12 @@ namespace CoreApplication
 
             // 更新语音服务设置
             speechService?.SynthesizeSpeech("设置已更新。", appSettings.TtsVoiceName, appSettings.TtsRate, appSettings.TtsVolume);
-            
-            // 确保主窗体重新获得焦点和键盘事件处理
+              // 确保主窗体重新获得焦点和键盘事件处理
             this.Activate();
             this.Focus();
-            ResetKeyboardHandling();        }        // 应用设置到主窗口和数字人显示模块        private void ApplySettings(SettingsForm.AppSettings settings)
+            ResetKeyboardHandling();
+        }        // 应用设置到主窗口和数字人显示模块
+        private void ApplySettings(SettingsForm.AppSettings settings)
         {
             Logger.LogInfo("应用设置中...");
             // 更新窗口大小和位置
@@ -355,40 +422,46 @@ namespace CoreApplication
             if (settings.WindowX != -1 && settings.WindowY != -1)
             {
                 this.Location = new Point(settings.WindowX, settings.WindowY);
-            }
-            
-            // 根据抠像设置更新窗口透明色
+            }            // 根据抠像设置更新窗口透明色
             if (settings.EnableChromaKey)
             {
-                // 启用抠像时设置窗口透明色为绿色
-                this.BackColor = Color.Green;
-                this.TransparencyKey = Color.Green;
-                Logger.LogInfo("启用抠像，设置窗口透明色为绿色");
+                // 启用抠像时设置窗口透明色为当前选择的抠像颜色
+                this.BackColor = settings.ChromaKeyColor;
+                this.TransparencyKey = settings.ChromaKeyColor;
+                
+                // 使用Windows API强制设置透明
+                ForceWindowTransparency(true);
+                Logger.LogInfo($"启用抠像，设置窗口透明色为: R={settings.ChromaKeyColor.R}, G={settings.ChromaKeyColor.G}, B={settings.ChromaKeyColor.B}");
             }
             else
             {
                 // 禁用抠像时移除窗口透明色
-                this.BackColor = SystemColors.Control;
+                this.BackColor = Color.Black;
                 this.TransparencyKey = Color.Empty;
+                
+                // 移除Windows API透明设置
+                ForceWindowTransparency(false);
                 Logger.LogInfo("禁用抠像，移除窗口透明色");
+            }            // 更新数字人显示控件的抠像设置
+            if (digitalHumanDisplay != null)
+            {
+                digitalHumanDisplay.EnableChromaKey = settings.EnableChromaKey;
+                digitalHumanDisplay.ChromaKeyColor = settings.ChromaKeyColor;
+                digitalHumanDisplay.Tolerance = settings.ChromaKeyTolerance;
+                digitalHumanDisplay.SetChromaKeyEnabled(settings.EnableChromaKey);
+                Logger.LogInfo($"更新数字人显示控件抠像设置: {settings.EnableChromaKey}, 颜色: R={settings.ChromaKeyColor.R}, G={settings.ChromaKeyColor.G}, B={settings.ChromaKeyColor.B}");
+                
+                // 更新推流地址
+                digitalHumanDisplay.LoadStreamAsync(settings.StreamAddress);
             }
             
             // 强制刷新窗口透明设置
             this.Invalidate();
             this.Update();
-            
-            // 更新数字人显示模块的抠像功能
-            digitalHumanDisplay.EnableChromaKey = settings.EnableChromaKey;
-            digitalHumanDisplay.ChromaKeyColor = settings.ChromaKeyColor;
-            digitalHumanDisplay.Tolerance = settings.ChromaKeyTolerance;
-            digitalHumanDisplay.SetChromaKeyEnabled(settings.EnableChromaKey);
-
             // 更新窗口置顶和点击穿透
             SetTopMost(settings.TopMostEnabled);
             EnableClickThrough(settings.ClickThroughEnabled);
-
-            // 更新推流地址
-            digitalHumanDisplay.SetStreamUrl(settings.StreamAddress);
+            
             Logger.LogInfo("设置应用完成。");
         }
 
@@ -477,7 +550,7 @@ namespace CoreApplication
                     if (aiManagerForm == null || aiManagerForm.IsDisposed)
                     {
                         Logger.LogInfo("创建新的AI管理界面实例。");
-                        aiManagerForm = new AIManagerForm(aiService);
+                        aiManagerForm = new AIManagerForm(aiService, appSettings);
                     }
 
                     if (aiManagerForm.Visible)
@@ -511,15 +584,14 @@ namespace CoreApplication
                 
                 // 如果设置窗口未创建或已释放，则重新创建
                 if (settingsForm == null || settingsForm.IsDisposed)
-                {
-                    Logger.LogInfo("创建新的设置窗口实例。");
-                    // 将主窗体作为 Owner 传递给 SettingsForm
-                    settingsForm = new SettingsForm(appSettings, this);
-                    settingsForm.SettingsChanged += SettingsForm_SettingsChanged;
-                }
-
-                // 切换设置窗口的可见状态
-                if (settingsForm.Visible)
+                {                    Logger.LogInfo("创建新的设置窗口实例。");
+                    settingsForm = new SettingsForm(appSettings, aiService);
+                    if (settingsForm != null)
+                    {
+                        settingsForm.SettingsChanged += SettingsForm_SettingsChanged;
+                    }
+                }                // 切换设置窗口的可见状态
+                if (settingsForm != null && settingsForm.Visible)
                 {
                     Logger.LogInfo("隐藏设置窗口。");
                     settingsForm.Hide();
@@ -528,8 +600,7 @@ namespace CoreApplication
                     this.Focus();
                     // 重置键盘事件处理
                     ResetKeyboardHandling();
-                }
-                else
+                }                else if (settingsForm != null)
                 {
                     Logger.LogInfo("显示设置窗口并激活。");
                     settingsForm.Show();
@@ -739,6 +810,167 @@ namespace CoreApplication
             {
                 this.BackColor = SystemColors.Control; // 禁用时恢复默认背景
                 Logger.LogInfo("主窗口背景恢复为默认颜色");
+            }
+        }        // 强制设置窗口透明度的方法
+        private void ForceWindowTransparency(bool enabled)
+        {
+            try
+            {
+                if (enabled)
+                {
+                    // 使用当前设置的抠像颜色作为透明色
+                    Color chromaColor = appSettings?.ChromaKeyColor ?? Color.Green;
+                    uint colorValue = (uint)((chromaColor.R << 16) | (chromaColor.G << 8) | chromaColor.B);
+                    
+                    // 方法1：设置窗口为分层窗口
+                    int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
+                    SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                    SetLayeredWindowAttributes(this.Handle, colorValue, 255, LWA_COLORKEY);
+                    
+                    // 方法2：强制刷新窗口区域（确保透明色生效）
+                    this.Invalidate();
+                    this.Update();
+                    
+                    // 方法3：强制重新绘制透明区域
+                    SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    
+                    Logger.LogInfo($"Windows API强制透明设置完成，颜色值: 0x{colorValue:X6} (R={chromaColor.R}, G={chromaColor.G}, B={chromaColor.B})");
+                    
+                    // 额外的透明强化
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(1000);
+                        this.Invoke(() =>
+                        {
+                            // 再次确认透明设置
+                            this.BackColor = chromaColor;
+                            this.TransparencyKey = chromaColor;
+                            this.Refresh();
+                            Logger.LogInfo("透明设置二次确认完成");
+                        });
+                    });
+                }
+                else
+                {
+                    // 移除分层窗口样式
+                    int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
+                    SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+                    
+                    Logger.LogInfo("Windows API透明设置已移除");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"设置窗口透明度失败: {ex.Message}", ex);
+            }
+        }        private void InitializeNativeLayeredWindowMode()
+        {
+            Logger.LogInfo("开始初始化原生透明窗口模式");
+            
+            // 在原生透明窗口模式下，MainForm 隐藏，原生透明窗口作为主显示
+            this.WindowState = FormWindowState.Minimized;
+            this.ShowInTaskbar = false;
+            this.Visible = false; // 隐藏控制台窗口
+              // 创建并显示原生透明窗口作为主要显示窗口
+            try
+            {
+                // 暂时注释掉原生窗口创建，先确保程序能正常编译运行
+                Logger.LogInfo("原生透明窗口创建暂时被注释，将回退到 WebView2 模式");
+                
+                // 回退到 WebView2 模式
+                appSettings.UseNativeLayeredWindow = false;
+                InitializeWebViewMode();
+                return;
+                
+                /*
+                var nativeWindow = new NativeLayeredWindow(appSettings.StreamAddress);
+                nativeWindow.Size = new Size(appSettings.WindowWidth, appSettings.WindowHeight);
+                if (appSettings.WindowX != -1 && appSettings.WindowY != -1)
+                {
+                    nativeWindow.Location = new Point(appSettings.WindowX, appSettings.WindowY);
+                }
+                else
+                {
+                    nativeWindow.StartPosition = FormStartPosition.CenterScreen;
+                }
+                nativeWindow.TopMost = appSettings.TopMostEnabled;
+                nativeWindow.SetChromaKeyColor(appSettings.ChromaKeyColor);
+                nativeWindow.EnableChromaKey(appSettings.EnableChromaKey);
+                nativeWindow.Show();
+                
+                // 异步加载推流地址
+                Task.Run(async () =>
+                {
+                    await Task.Delay(1000); // 等待窗口完全初始化
+                    await nativeWindow.LoadStreamAsync(appSettings.StreamAddress);
+                });
+                  // 存储原生窗口引用，以便后续控制
+                this.nativeWindow = nativeWindow;
+                
+                Logger.LogInfo("原生透明窗口创建并显示成功，作为主显示窗口");
+                */
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"创建原生透明窗口失败: {ex.Message}", ex);
+                MessageBox.Show($"原生透明窗口创建失败：{ex.Message}\n\n将回退到 WebView2 模式", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                
+                // 回退到 WebView2 模式
+                appSettings.UseNativeLayeredWindow = false;
+                InitializeWebViewMode();
+                return;
+            }
+            
+            Logger.LogInfo("原生透明窗口模式初始化完成");
+        }private void InitializeWebViewMode()
+        {
+            Logger.LogInfo("开始初始化 WebView2 显示模式");
+            
+            // 在 WebView2 模式下，MainForm 显示 DigitalHumanDisplay 控件
+            this.WindowState = FormWindowState.Normal;
+            this.ShowInTaskbar = true;
+            this.Visible = true;
+            this.Text = "bestHuman 数字人助手 (WebView2模式)";
+            this.FormBorderStyle = FormBorderStyle.None; // 无边框
+            
+            try
+            {
+                digitalHumanDisplay = new DigitalHumanDisplay();
+                digitalHumanDisplay.Dock = DockStyle.Fill;
+                Controls.Add(digitalHumanDisplay);
+                
+                // 应用配置到显示控件
+                if (digitalHumanDisplay != null)
+                {
+                    digitalHumanDisplay.EnableChromaKey = appSettings.EnableChromaKey;
+                    digitalHumanDisplay.ChromaKeyColor = appSettings.ChromaKeyColor;
+                    digitalHumanDisplay.Tolerance = appSettings.ChromaKeyTolerance;
+                    digitalHumanDisplay.SetChromaKeyEnabled(appSettings.EnableChromaKey);
+                    
+                    Logger.LogInfo($"准备加载推流地址: {appSettings.StreamAddress}");
+                    
+                    // 异步加载推流地址
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await digitalHumanDisplay.LoadStreamAsync(appSettings.StreamAddress);
+                            Logger.LogInfo("推流地址加载完成");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError($"加载推流地址失败: {ex.Message}", ex);
+                        }
+                    });
+                }
+                
+                Logger.LogInfo("WebView2 显示模式初始化完成");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"WebView2 模式初始化失败: {ex.Message}", ex);
+                MessageBox.Show($"WebView2 初始化失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

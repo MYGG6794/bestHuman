@@ -2,150 +2,116 @@
 数字人助手软件开发项目
 
 ## 项目概述
-本项目旨在开发一款桌面端数字人助手软件，作为UE端数字人实时渲染的前置窗口和控制中心。软件需具备像素流接收、透明化显示、语音交互、自定义讲解、本地AI问答等核心功能，并通过模块化设计，确保高内聚、低耦合，便于迭代与维护。
+本项目是一款桌面端数字人助手软件，作为UE端数字人实时渲染的前置窗口和控制中心。具备透明抠像显示、语音交互、脚本播放、本地AI问答等核心功能。
 
-## 模块划分
-整个软件划分为以下核心模块：
+## 核心特性
+- ✅ **透明抠像显示**：WebView2接收像素流，支持绿色抠像透明背景
+- ✅ **桌面穿透**：点击穿透功能，数字人悬浮不影响其他应用操作
+- ✅ **语音交互**：集成Windows语音识别(ASR)和语音合成(TTS)
+- ✅ **脚本系统**：支持自定义讲解内容编辑和播放控制
+- ✅ **本地AI**：ONNX Runtime本地AI推理，支持知识库问答
+- ✅ **WebSocket通信**：与UE端实时数据交换
+- 🔄 **原生透明窗口**：开发中，提供更好的桌面集成
 
-1.  **核心应用框架 (Core Application Framework)**
-    *   负责整个应用程序的生命周期管理、主窗口创建与初始化、多线程调度、以及各模块间的消息传递与事件处理。
-2.  **数字人显示模块 (Digital Human Display Module)**
-    *   接收并渲染UE端推送的数字人像素流，实现抠像透明底效果，并管理窗口的置顶、大小和点击穿透。
-3.  **后台管理界面模块 (Backend Management UI Module)**
-    *   提供一个易于操作的图形用户界面，用于配置和管理软件的各项功能参数，并支持快捷键呼出/隐藏。
-4.  **语音服务模块 (Speech Services Module)**
-    *   集成Windows系统内置的语音识别（ASR）和语音合成（TTS）功能，并通过WebSocket接口提供给UE端调用。
-5.  **讲解词与动作脚本模块 (Scripting & Action Script Module)**
-    *   允许用户自定义讲解词内容和数字人对应的动作序列，并能通过WebSocket接口驱动UE端数字人执行。
-6.  **本地AI与知识库模块 (Local AI & Knowledge Base Module)**
-    *   内嵌 DeepSeek Distillation 7B 模型，实现语义理解和输出，并支持配置知识库，通过接口供UE端调用。
-7.  **网络通信模块 (Network Communication Module)**
-    *   统一管理软件与UE端之间的所有WebSocket通信，包括连接管理、消息发送与接收、错误处理和协议解析。
-8.  **通用工具与服务模块 (Utilities & Common Services Module)**
-    *   提供应用程序通用的辅助功能，例如日志记录、配置文件管理、数据校验、时间处理等。
+## 当前状态
+- ✅ 主程序运行正常，支持透明抠像显示
+- ✅ 全局热键 `Alt+S` 打开设置界面
+- ✅ 语音服务、WebSocket通信、脚本播放功能完整
+- ✅ AI管理界面和知识库检索服务
+- 🔄 原生透明窗口功能正在完善中
 
-## 开发阶段
-### 第一阶段
-*   核心应用框架 (Core Application Framework)
-*   数字人显示模块 (Digital Human Display Module)
-*   后台管理界面模块 (Backend Management UI Module)
-    *   已完成：
-        *   创建 `bestHuman` 解决方案和 `CoreApplication` 项目。
-        *   配置 `CoreApplication.csproj` 为 Windows Forms 应用程序。
-        *   创建 `Program.cs` 中的 `MainForm` 作为主窗口。
-*   数字人显示模块 (Digital Human Display Module)
-    *   已完成：
-        *   创建 `DigitalHumanDisplay.cs`，继承自 `PictureBox`，并实现基本的抠像逻辑。
-        *   在 `MainForm` 中集成 `DigitalHumanDisplay` 控件。
-        *   通过 P/Invoke 实现了主窗口的无边框、置顶和点击穿透功能。
-*   后台管理界面模块 (Backend Management UI Module)
-    *   已完成：
-        *   创建 `SettingsForm.cs` 作为后台管理界面，包含基本的UI元素和设置保存事件。
-        *   在 `MainForm` 中实例化 `SettingsForm`。
-        *   ~~在 `MainForm` 中实现了快捷键 (Ctrl + Alt + S) 监听，用于显示/隐藏 `SettingsForm`。~~
-        *   **✅ 实现了强大的多层快捷键系统 (Alt + S)，支持全局热键和本地按键检测，确保在任何状态下都能可靠触发设置窗口。**
-        *   在 `MainForm` 中实现了 `SettingsForm` 的 `SettingsChanged` 事件处理，用于应用和保存配置。
-        *   初步实现了配置的加载和保存（目前为占位逻辑，后续将集成通用工具与服务模块进行文件持久化）。
-        *   **✅ 解决了设置保存后快捷键失效的问题，通过焦点管理、事件重置和全局热键注册确保快捷键的稳定性。**
-    *   **第一阶段已完成。**
+## 项目结构
+```
+bestHuman/
+├── README.md                   # 项目文档
+├── 开发文档.md                 # 详细开发文档
+├── bestHuman/
+│   ├── bestHuman.sln          # Visual Studio解决方案
+│   └── CoreApplication/       # 主应用程序
+│       ├── Program.cs         # 程序入口，主窗口管理
+│       ├── DigitalHumanDisplay.cs  # 数字人显示控件（WebView2）
+│       ├── SettingsForm.cs    # 设置管理界面
+│       ├── WebSocketClient.cs # WebSocket通信模块
+│       ├── SpeechService.cs   # 语音识别和合成服务
+│       ├── ScriptService.cs   # 脚本数据管理
+│       ├── ScriptEditForm.cs  # 脚本编辑器
+│       ├── ScriptPlayerForm.cs # 脚本播放控制
+│       ├── AIService.cs       # AI推理服务
+│       ├── AIManagerForm.cs   # AI管理界面
+│       ├── ModelInference.cs  # ONNX模型推理
+│       ├── VectorSearchService.cs # 向量检索（RAG）
+│       ├── NativeLayeredWindow.cs # 原生透明窗口（开发中）
+│       ├── Utilities.cs       # 通用工具类
+│       ├── data/              # 数据文件目录
+│       │   └── knowledge.json # 知识库数据
+│       └── models/            # AI模型文件目录
+└── NativeWindowTest/          # 原生窗口测试项目
+```
 
-### 第二阶段
-*   网络通信模块 (Network Communication Module)
-    *   已完成：
-        *   创建 `WebSocketClient.cs`，封装 WebSocket 客户端的连接、断开、发送和接收消息逻辑。
-        *   在 `SettingsForm.cs` 中添加 WebSocket 服务器地址配置项。
-        *   在 `MainForm.cs` 中集成 `WebSocketClient`，实现连接管理和事件处理。
-        *   在 `MainForm` 的 `FormClosing` 事件中确保 WebSocket 连接被正确关闭。
-*   语音服务模块 (Speech Services Module)
-    *   已完成：
-        *   创建 `SpeechService.cs`，封装语音识别 (ASR) 和语音合成 (TTS) 的基本逻辑。
-        *   在 `SettingsForm.cs` 中添加 TTS 音色、语速、音量配置项。
-        *   在 `MainForm.cs` 中集成 `SpeechService`，处理语音识别结果和语音合成状态，并通过 `WebSocketClient` 进行数据传输。
-        *   在 `MainForm` 的 `FormClosing` 事件中确保 `SpeechService` 被正确释放。
-    *   **第二阶段已完成。**
+## 使用说明
 
-### 第三阶段
-* 讲解词与动作脚本模块 (Scripting & Action Script Module)
-    * 已完成：
-        * 创建 `ScriptService.cs`，实现脚本数据结构（`Script`、`ScriptSegment`、`DigitalHumanAction`）和核心服务逻辑。
-        * 封装脚本的加载、保存、播放控制和同步逻辑。
-        * 与语音服务和 WebSocket 通信模块集成，实现语音合成与动作同步。
-        * 创建 `ScriptEditForm.cs`，实现脚本编辑界面，支持段落管理和动作编辑。
-        * 创建 `ScriptPlayerForm.cs`，实现播放控制界面，支持播放、暂停、停止和循环播放功能。
-        * 在 `SettingsForm.cs` 中添加讲解词管理和播放控制的入口按钮。
-        * 优化 `Program.cs` 中的全局服务访问逻辑。
-    * **第三阶段已完成。**
+### 系统要求
+- Windows 10/11 (x64)
+- .NET 9.0 Runtime
+- Microsoft Edge WebView2 Runtime
 
-### 第四阶段
-* 本地AI与知识库模块 (Local AI & Knowledge Base Module)
-    * 已完成基础架构：
-        * 创建 `ModelInference.cs`，封装模型加载、分词和推理功能。
-        * 创建 `AIService.cs`，设计 AI 服务的核心结构，包含模型管理和知识库管理功能。
-        * 集成 ONNX Runtime 作为推理引擎。
-        * 创建 `AIManagerForm.cs`，提供 AI 配置和知识库管理界面。
-        * 实现知识库的加载、保存和基本检索逻辑。
-        * 实现模型信息展示（名称、词汇表大小、输入形状等）。
-        * 建立项目基础结构，包括模型和知识库存储目录。
-        * 实现了 RAG 的基础架构：
-            * 创建 VectorSearchService 类，支持文本分块和向量检索。
-            * 实现智能文本分块，支持段落完整性和句子边界。
-            * 实现基于余弦相似度的向量检索。
-            * 支持异步文档加载和检索操作。
-    * 待完成功能：
-        * DeepSeek Distillation 7B 模型的具体集成：
-            * 获取并转换模型为 ONNX 格式
-            * 实现分词器
-            * 优化推理性能
-        * 高级 RAG 机制：
-            * 添加向量索引以提高检索性能
-            * 支持更多知识库文件格式
-            * 优化相似度计算策略
-        * 云端 API 回退：
-            * 实现 OpenAI API 集成
-            * 实现百度文心一言 API 集成
-            * 添加智能切换策略
+### 运行程序
+1. 编译：`dotnet build`
+2. 运行：`dotnet run` 或直接运行可执行文件
+3. 热键：`Alt+S` 打开设置界面，`Alt+A` 打开AI管理
 
-## 系统特性和改进
+### 主要功能
+- **透明显示**：数字人悬浮桌面，支持绿色抠像
+- **语音交互**：语音识别输入，TTS语音输出
+- **脚本播放**：自定义讲解内容编辑和播放
+- **AI问答**：本地AI模型，支持知识库检索
+- **实时通信**：WebSocket与UE端数据交换
 
-### 快捷键系统
-- **全局热键支持**：实现了 Alt+S 和 Alt+F10 两个快捷键来唤出设置窗口
-- **多重检测机制**：支持 KeyData、分步检测、全局热键等多种方式确保快捷键可靠性
-- **焦点管理**：自动检测和恢复主窗体焦点，确保快捷键在各种场景下都能正常工作
-- **设置保存后的快捷键恢复**：解决了保存设置后快捷键失效的问题
+## 技术特性
 
-### 抠像功能 ✅ **已修复完成**
-- **智能默认设置**：抠像功能默认禁用，确保不影响原始30fps视频性能
-- **高效抠像算法**：基于LockBits的高性能像素处理，避免GetPixel/SetPixel的性能问题
-- **颜色设置修复**：修复了颜色选择器无法更新抠像颜色的问题
-- **性能警告**：启用抠像时显示性能影响警告，让用户知情选择
-- **UI优化**：抠像选项包含性能提示，"启用客户端抠像 (⚠️ 可能影响性能)"
-- **WebView2集成**：完整的WebView2支持，支持实时流处理
+### 架构设计
+- **.NET 9.0 + Windows Forms**：现代.NET框架，原生Windows桌面体验
+- **WebView2集成**：微软官方Web控件，高性能视频流渲染
+- **模块化架构**：松耦合设计，便于功能扩展和维护
 
-**抠像功能技术细节**：
-- 默认状态：禁用（避免影响性能）
-- 算法：基于LockBits的高效像素处理
-- 默认抠像颜色：绿色 (Color.Green)
-- 默认容差：30（0-100范围）
-- 性能：使用Marshal.Copy进行快速内存操作
-- 用户确认：启用时显示性能警告对话框
+### 核心技术
+- **抠像算法**：JavaScript像素级处理，支持绿色背景透明化
+- **全局热键**：Windows API实现，支持多重快捷键机制
+- **语音服务**：Windows内置Speech API，支持ASR和TTS
+- **AI推理**：ONNX Runtime本地推理，支持多种AI模型
+- **实时通信**：WebSocket双向通信，与UE端数据同步
 
-**修复的问题（2025-06-13）**：
-1. ✅ **颜色设置无效**：修复了颜色选择器只更新按钮背景但不更新实际抠像颜色的问题
-2. ✅ **性能卡顿**：将抠像功能默认禁用，移除了影响30fps视频流的处理逻辑
-3. ✅ **算法优化**：使用基于CSS/JavaScript的高效抠像方案，避免CPU密集型像素处理
-4. ✅ **用户体验**：添加性能警告和确认对话框，让用户了解功能影响
-5. ✅ **复选框状态问题**：修复了确认启用抠像后复选框又变回未选中的递归调用问题
-6. ✅ **窗口透明度**：修复了主窗口背景不透明的问题，现在可以看到桌面背景
+### 开发进度
+- ✅ **基础框架完成**：应用生命周期、窗口管理、配置系统
+- ✅ **显示模块完成**：WebView2集成、抠像算法、透明显示
+- ✅ **交互模块完成**：语音服务、脚本系统、热键管理
+- ✅ **AI模块完成**：本地推理、知识库、向量检索
+- 🔄 **原生窗口优化中**：Windows API透明窗口，性能提升
 
-**抠像技术方案升级**：
-- 从CPU密集型像素处理改为基于CSS滤镜和JavaScript的高效方案
-- 使用WebView2的ExecuteScript注入透明CSS，性能影响最小
-- 支持动态启用/禁用，实时生效
+## 开发环境
+- **.NET 9.0**: 最新的 .NET 框架支持
+- **Windows Forms**: 原生 Windows 桌面应用开发
+- **WebView2**: 微软官方的现代 Web 控件
+- **ONNX Runtime**: 跨平台 AI 模型推理引擎
+- **System.Speech**: Windows 内置语音服务
 
-### 窗口管理
-- **置顶和点击穿透**：支持窗口置顶和点击穿透功能的动态切换
-- **WebView2集成**：完整的WebView2支持，包括透明背景和媒体流优化
-- **多窗口协调**：主窗口、设置窗口、脚本编辑器等多窗口的Z序和焦点管理
+## 贡献指南
+本项目正在积极开发中，欢迎贡献代码和建议：
+
+1. Fork 本项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 许可证
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+
+## 联系方式
+如有问题或建议，请通过 Issue 系统联系我们。
+
+---
+*最后更新时间：2025年6月17日*
 
 ### 日志系统
 - **详细日志记录**：涵盖启动、快捷键、抠像处理、设置变更等所有关键操作

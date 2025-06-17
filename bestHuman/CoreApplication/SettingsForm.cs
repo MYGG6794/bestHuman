@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.IO;
+using System.Text.Json;
 
 namespace CoreApplication
 {
@@ -10,21 +11,22 @@ namespace CoreApplication
         // 定义事件，用于通知主窗口设置已更改
         public event EventHandler<SettingsChangedEventArgs>? SettingsChanged;        // 假设的配置类
         public class AppSettings
-        {            public string StreamAddress { get; set; } = "http://127.0.0.1:11188/video.html";
+        {            
+            public string StreamAddress { get; set; } = "http://127.0.0.1:11188/video.html";
             public string WebSocketServerAddress { get; set; } = "ws://localhost:8080";
             public Color ChromaKeyColor { get; set; } = Color.Green;
-            public int ChromaKeyTolerance { get; set; } = 30;
-            public bool UsePreprocessedStream { get; set; } = false; // 是否使用预处理过的视频流（已经抠像）
-            public bool EnableChromaKey { get; set; } = false; // 默认禁用客户端抠像功能，避免影响性能
+            public int ChromaKeyTolerance { get; set; } = 30; // For WebView2 or future use
+            public bool EnableChromaKey { get; set; } = false; // Added EnableChromaKey property
             public int WindowWidth { get; set; } = 800;
             public int WindowHeight { get; set; } = 600;
             public int WindowX { get; set; } = -1;
             public int WindowY { get; set; } = -1;
-            public bool ClickThroughEnabled { get; set; } = true;
+            public bool ClickThroughEnabled { get; set; } = true; // May need adjustment for layered window
             public bool TopMostEnabled { get; set; } = true;
             public string TtsVoiceName { get; set; } = "Microsoft Huihui";
             public int TtsRate { get; set; } = 0;
             public int TtsVolume { get; set; } = 100;
+            public bool UseNativeLayeredWindow { get; set; } = false; // New setting
 
             // AI服务配置
             public string ModelPath { get; set; } = "";
@@ -33,6 +35,47 @@ namespace CoreApplication
             public bool EnableCloudFallback { get; set; } = false;
             public string? CloudAPIKey { get; set; }
             public string? CloudAPIEndpoint { get; set; }
+
+            // Static methods for configuration persistence
+            private static string GetSettingsFilePath()
+            {
+                return Path.Combine(Application.StartupPath, "appsettings.json");
+            }
+
+            public static AppSettings Load()
+            {
+                try
+                {
+                    string filePath = GetSettingsFilePath();
+                    if (File.Exists(filePath))
+                    {
+                        string json = File.ReadAllText(filePath);
+                        var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                        return settings ?? new AppSettings();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error if Logger is available
+                    try { Logger.LogError($"Error loading settings: {ex.Message}", ex); } catch { }
+                }
+                return new AppSettings();
+            }
+
+            public void Save()
+            {
+                try
+                {
+                    string filePath = GetSettingsFilePath();
+                    string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(filePath, json);
+                }
+                catch (Exception ex)
+                {
+                    // Log error if Logger is available
+                    try { Logger.LogError($"Error saving settings: {ex.Message}", ex); } catch { }
+                }
+            }
         }
 
         public class SettingsChangedEventArgs : EventArgs
@@ -51,67 +94,76 @@ namespace CoreApplication
         private AIManagerForm? _aiManagerForm;
         private readonly ScriptService _scriptService;
         private readonly AIService _aiService;        // UI控件字段
-        private TextBox txtStreamAddress;
-        private TextBox txtWebSocketAddress;
-        private Button btnChromaKeyColor;
-        private NumericUpDown numChromaKeyTolerance;
-        private CheckBox chkEnableChromaKey;
-        private CheckBox chkTopMost;
-        private CheckBox chkClickThrough;
-        private NumericUpDown numWidth;
-        private NumericUpDown numHeight;
-        private ComboBox cboVoices;
-        private TrackBar trkRate;
-        private TrackBar trkVolume;
-        private TextBox txtModelPath;
-        private TextBox txtKnowledgeBasePath;
-        private CheckBox chkUseGPU;
-        private CheckBox chkEnableCloudFallback;
-        private TextBox txtCloudAPIKey;
-        private TextBox txtCloudAPIEndpoint;
-        private Button btnAIManager;
-        private Button btnScriptManager;
-        private Button btnScriptPlayer;public SettingsForm(AppSettings initialSettings, Form? owner = null)
+        private TextBox txtStreamAddress = null!;
+        private TextBox txtWebSocketAddress = null!;
+        private CheckBox chkEnableChromaKey = null!; // 添加启用抠像的复选框字段
+        private Button btnChromaKeyColor = null!;
+        private NumericUpDown numChromaKeyTolerance = null!;
+        private CheckBox chkTopMost = null!;
+        private CheckBox chkClickThrough = null!;
+        private NumericUpDown numWidth = null!;
+        private NumericUpDown numHeight = null!;
+        private CheckBox chkUseNativeLayeredWindow = null!; // New CheckBox field
+        private ComboBox cboVoices = null!;
+        private TrackBar trkRate = null!;
+        private TrackBar trkVolume = null!;
+        private TextBox txtModelPath = null!;
+        private TextBox txtKnowledgeBasePath = null!;
+        private CheckBox chkUseGPU = null!;
+        private CheckBox chkEnableCloudFallback = null!;
+        private TextBox txtCloudAPIKey = null!;
+        private TextBox txtCloudAPIEndpoint = null!;
+        private Button btnAIManager = null!;
+        private Button btnScriptManager = null!;
+        private Button btnScriptPlayer = null!;public SettingsForm(AppSettings initialSettings, AIService? aiService = null, ScriptService? scriptService = null)
         {
             _currentSettings = initialSettings;
             
-            // 设置窗口样式
-            this.ShowInTaskbar = true;
-            this.FormBorderStyle = FormBorderStyle.Sizable;
-            this.MaximizeBox = false;
-            this.MinimizeBox = true;
-            this.StartPosition = FormStartPosition.CenterScreen;
-            
-            // 设置窗口所有者，确保正确的Z序和焦点管理
-            if (owner != null)
-            {
-                this.Owner = owner;
-                Logger.LogInfo($"设置窗口所有者: {owner.GetType().Name}");
-            }
-            
-            // 添加窗口状态事件处理
-            this.FormClosing += SettingsForm_FormClosing;
-            this.VisibleChanged += SettingsForm_VisibleChanged;
-            this.Activated += SettingsForm_Activated;
-            this.Deactivate += SettingsForm_Deactivate;
+            // 添加窗体关闭事件处理
+            this.FormClosing += (s, e) => {
+                if (e.CloseReason == CloseReason.UserClosing)
+                {
+                    e.Cancel = true;  // 取消关闭
+                    this.Hide();      // 改为隐藏
+                }
+            };
             
             try
             {
-                // 初始化服务
-                var speechService = new SpeechService();
-                _scriptService = new ScriptService(
-                    Program.WebSocketClient,
-                    speechService
-                );                _aiService = new AIService(
-                    Program.WebSocketClient,
-                    new AIServiceConfig
-                    {
-                        ModelPath = Path.Combine(Application.StartupPath, "models", "model.onnx"),
-                        KnowledgeBasePath = Path.Combine(Application.StartupPath, "data", "knowledge.json"),
-                        UseGPU = false,
-                        EnableCloudFallback = false
-                    }
-                );
+                // 使用传入的服务实例，或创建新的实例
+                if (aiService != null)
+                {
+                    _aiService = aiService;
+                }
+                else
+                {
+                    _aiService = new AIService(
+                        Program.WebSocketClient,
+                        new AIServiceConfig
+                        {
+                            ModelPath = _currentSettings.ModelPath,
+                            KnowledgeBasePath = _currentSettings.KnowledgeBasePath,
+                            UseGPU = _currentSettings.UseGPU,
+                            EnableCloudFallback = _currentSettings.EnableCloudFallback,
+                            CloudAPIKey = _currentSettings.CloudAPIKey,
+                            CloudAPIEndpoint = _currentSettings.CloudAPIEndpoint
+                        }
+                    );
+                }
+
+                if (scriptService != null)
+                {
+                    _scriptService = scriptService;
+                }
+                else
+                {
+                    // 初始化默认服务
+                    var speechService = new SpeechService();
+                    _scriptService = new ScriptService(
+                        Program.WebSocketClient,
+                        speechService
+                    );
+                }
 
                 InitializeComponent();
                 LoadSettingsToUI(_currentSettings);
@@ -156,17 +208,11 @@ namespace CoreApplication
             
             // WebSocket服务器地址
             var lblWebSocketAddress = new Label { Text = "WebSocket地址:", Location = new Point(10, 50), AutoSize = true };
-            txtWebSocketAddress = new TextBox { Location = new Point(120, 47), Width = 400 };
-              // 抠像设置
-            var grpChromaKey = new GroupBox { Text = "抠像设置", Location = new Point(10, 80), Size = new Size(540, 120) };
-              // 启用抠像复选框
-            chkEnableChromaKey = new CheckBox 
-            { 
-                Text = "启用客户端抠像 (⚠️ 可能影响性能)", 
-                Location = new Point(10, 25), 
-                AutoSize = true,
-                Checked = _currentSettings.EnableChromaKey
-            };
+            txtWebSocketAddress = new TextBox { Location = new Point(120, 47), Width = 400 };            // 抠像设置
+            var grpChromaKey = new GroupBox { Text = "抠像设置", Location = new Point(10, 80), Size = new Size(540, 120) }; // 增加高度
+            
+            // 添加启用抠像的复选框
+            chkEnableChromaKey = new CheckBox { Text = "启用抠像功能", Location = new Point(10, 25), AutoSize = true };
             
             btnChromaKeyColor = new Button { Text = "选择背景色", Location = new Point(10, 55), Width = 100 };
             var lblTolerance = new Label { Text = "容差:", Location = new Point(120, 57), AutoSize = true };
@@ -178,77 +224,12 @@ namespace CoreApplication
                 Maximum = 100,
                 Value = 30
             };
-
-            // 添加预处理流选项
-            var chkUsePreprocessedStream = new CheckBox 
-            { 
-                Text = "使用预处理透明流", 
-                Location = new Point(250, 57), 
-                AutoSize = true,
-                Checked = _currentSettings.UsePreprocessedStream
-            };            chkUsePreprocessedStream.CheckedChanged += (s, e) =>
-            {
-                _currentSettings.UsePreprocessedStream = chkUsePreprocessedStream.Checked;
-                btnChromaKeyColor.Enabled = !chkUsePreprocessedStream.Checked;
-                numChromaKeyTolerance.Enabled = !chkUsePreprocessedStream.Checked;
-                chkEnableChromaKey.Enabled = !chkUsePreprocessedStream.Checked;
-            };            // 添加一个标志避免递归调用
-            bool isCheckboxUpdating = false;
-              chkEnableChromaKey.CheckedChanged += (s, e) =>
-            {
-                if (isCheckboxUpdating) return; // 避免递归调用
-                
-                if (chkEnableChromaKey.Checked)
-                {
-                    var result = MessageBox.Show(
-                        "客户端抠像功能会对性能产生影响，可能降低视频流的帧率。\n\n" +
-                        "建议只在以下情况启用：\n" +
-                        "1. 需要在客户端实时抠像处理\n" +
-                        "2. 服务端未提供透明流\n" +
-                        "3. 性能要求不高的场景\n\n" +
-                        "是否确认启用？",
-                        "性能警告",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning);
-                    
-                    if (result == DialogResult.No)
-                    {
-                        isCheckboxUpdating = true;
-                        chkEnableChromaKey.Checked = false;
-                        isCheckboxUpdating = false;
-                        _currentSettings.EnableChromaKey = false;
-                        Logger.LogInfo("用户取消启用客户端抠像功能");
-                        return;
-                    }
-                    
-                    Logger.LogInfo("用户确认启用客户端抠像功能");
-                    // 确保在确认后正确设置状态
-                    isCheckboxUpdating = true;
-                    chkEnableChromaKey.Checked = true;
-                    isCheckboxUpdating = false;
-                    _currentSettings.EnableChromaKey = true;
-                    Logger.LogInfo("抠像功能设置更改: 启用");
-                }
-                else
-                {
-                    // 用户取消选中复选框
-                    _currentSettings.EnableChromaKey = false;
-                    Logger.LogInfo("抠像功能设置更改: 禁用");
-                }
-            };
             
-            grpChromaKey.Controls.AddRange(new Control[] { 
-                chkEnableChromaKey,
-                btnChromaKeyColor, 
-                lblTolerance, 
-                numChromaKeyTolerance,
-                chkUsePreprocessedStream 
-            });
-            
-            // 窗口设置
-            var grpWindow = new GroupBox { Text = "窗口设置", Location = new Point(10, 190), Size = new Size(540, 120) };
+            grpChromaKey.Controls.AddRange(new Control[] { chkEnableChromaKey, btnChromaKeyColor, lblTolerance, numChromaKeyTolerance });
+              // 窗口设置
+            var grpWindow = new GroupBox { Text = "窗口设置", Location = new Point(10, 210), Size = new Size(540, 150) }; // 调整位置到 210
             chkTopMost = new CheckBox { Text = "窗口置顶", Location = new Point(10, 25), AutoSize = true };
-            chkClickThrough = new CheckBox { Text = "点击穿透", Location = new Point(120, 25), AutoSize = true };
+            chkClickThrough = new CheckBox { Text = "点击穿透 (WebView2)", Location = new Point(120, 25), AutoSize = true }; // Clarified for WebView2
             
             var lblSize = new Label { Text = "窗口大小:", Location = new Point(10, 55), AutoSize = true };
             var lblWidth = new Label { Text = "宽度:", Location = new Point(80, 55), AutoSize = true };
@@ -257,7 +238,7 @@ namespace CoreApplication
                 Location = new Point(120, 53), 
                 Width = 60,
                 Minimum = 100,
-                Maximum = 1920,
+                Maximum = 3840, // Increased max width
                 Value = 800
             };
             var lblHeight = new Label { Text = "高度:", Location = new Point(200, 55), AutoSize = true };
@@ -266,15 +247,18 @@ namespace CoreApplication
                 Location = new Point(240, 53), 
                 Width = 60,
                 Minimum = 100,
-                Maximum = 1080,
+                Maximum = 2160, // Increased max height
                 Value = 600
             };
+
+            chkUseNativeLayeredWindow = new CheckBox { Text = "使用原生透明窗口", Location = new Point(10, 85), AutoSize = true };
             
             grpWindow.Controls.AddRange(new Control[] 
             { 
                 chkTopMost, chkClickThrough, 
                 lblSize, lblWidth, numWidth, 
-                lblHeight, numHeight 
+                lblHeight, numHeight,
+                chkUseNativeLayeredWindow // Added new checkbox
             });
             
             pnlDisplay.Controls.AddRange(new Control[] 
@@ -384,16 +368,14 @@ namespace CoreApplication
             btnSave.Click += BtnSave_Click;
             
             this.Controls.AddRange(new Control[] { tabControl, btnSave });
-              // 事件处理
+            
+            // 事件处理
             btnChromaKeyColor.Click += (s, e) =>
             {
                 using var colorDialog = new ColorDialog();
-                colorDialog.Color = btnChromaKeyColor.BackColor; // 设置当前颜色为默认选择
                 if (colorDialog.ShowDialog() == DialogResult.OK)
                 {
                     btnChromaKeyColor.BackColor = colorDialog.Color;
-                    _currentSettings.ChromaKeyColor = colorDialog.Color; // 立即更新设置
-                    Logger.LogInfo($"抠像颜色已更改为: R={colorDialog.Color.R}, G={colorDialog.Color.G}, B={colorDialog.Color.B}");
                 }
             };
             
@@ -402,42 +384,18 @@ namespace CoreApplication
                 txtCloudAPIKey.Enabled = chkEnableCloudFallback.Checked;
                 txtCloudAPIEndpoint.Enabled = chkEnableCloudFallback.Checked;
             };
-        }        private void SaveSettingsFromUI(AppSettings settings)
+        }        private void LoadSettingsToUI(AppSettings settings)
         {
-            // 从UI控件获取设置并保存
-            settings.StreamAddress = txtStreamAddress.Text;
-            settings.WebSocketServerAddress = txtWebSocketAddress.Text;
-            settings.EnableChromaKey = chkEnableChromaKey.Checked;
-            settings.ChromaKeyColor = btnChromaKeyColor.BackColor;
-            settings.ChromaKeyTolerance = (int)numChromaKeyTolerance.Value;
-            settings.TopMostEnabled = chkTopMost.Checked;
-            settings.ClickThroughEnabled = chkClickThrough.Checked;
-            settings.WindowWidth = (int)numWidth.Value;
-            settings.WindowHeight = (int)numHeight.Value;
-            settings.TtsVoiceName = cboVoices.Text;
-            settings.TtsRate = trkRate.Value;
-            settings.TtsVolume = trkVolume.Value;
-            settings.ModelPath = txtModelPath.Text;
-            settings.KnowledgeBasePath = txtKnowledgeBasePath.Text;
-            settings.UseGPU = chkUseGPU.Checked;
-            settings.EnableCloudFallback = chkEnableCloudFallback.Checked;
-            settings.CloudAPIKey = txtCloudAPIKey.Text;
-            settings.CloudAPIEndpoint = txtCloudAPIEndpoint.Text;
-        }private void LoadSettingsToUI(AppSettings settings)
-        {
-            // 将设置加载到UI控件
             txtStreamAddress.Text = settings.StreamAddress;
             txtWebSocketAddress.Text = settings.WebSocketServerAddress;
-            chkEnableChromaKey.Checked = settings.EnableChromaKey;
+            chkEnableChromaKey.Checked = settings.EnableChromaKey; // 加载抠像启用状态
             btnChromaKeyColor.BackColor = settings.ChromaKeyColor;
             numChromaKeyTolerance.Value = settings.ChromaKeyTolerance;
-            btnChromaKeyColor.Enabled = !settings.UsePreprocessedStream;
-            numChromaKeyTolerance.Enabled = !settings.UsePreprocessedStream;
-            chkEnableChromaKey.Enabled = !settings.UsePreprocessedStream;
             chkTopMost.Checked = settings.TopMostEnabled;
             chkClickThrough.Checked = settings.ClickThroughEnabled;
             numWidth.Value = settings.WindowWidth;
             numHeight.Value = settings.WindowHeight;
+            chkUseNativeLayeredWindow.Checked = settings.UseNativeLayeredWindow; // Load new setting
             cboVoices.Text = settings.TtsVoiceName;
             trkRate.Value = settings.TtsRate;
             trkVolume.Value = settings.TtsVolume;
@@ -447,31 +405,35 @@ namespace CoreApplication
             chkEnableCloudFallback.Checked = settings.EnableCloudFallback;
             txtCloudAPIKey.Text = settings.CloudAPIKey ?? string.Empty;
             txtCloudAPIEndpoint.Text = settings.CloudAPIEndpoint ?? string.Empty;
-        }
-
-        private void BtnSave_Click(object? sender, EventArgs e)
+        }        private void SaveSettingsFromUI(AppSettings settings)
+        {
+            if (txtStreamAddress != null) settings.StreamAddress = txtStreamAddress.Text;
+            if (txtWebSocketAddress != null) settings.WebSocketServerAddress = txtWebSocketAddress.Text;
+            if (chkEnableChromaKey != null) settings.EnableChromaKey = chkEnableChromaKey.Checked; // 保存抠像启用状态
+            if (btnChromaKeyColor != null) settings.ChromaKeyColor = btnChromaKeyColor.BackColor;
+            if (numChromaKeyTolerance != null) settings.ChromaKeyTolerance = (int)numChromaKeyTolerance.Value;
+            if (chkTopMost != null) settings.TopMostEnabled = chkTopMost.Checked;
+            if (chkClickThrough != null) settings.ClickThroughEnabled = chkClickThrough.Checked;
+            if (numWidth != null) settings.WindowWidth = (int)numWidth.Value;
+            if (numHeight != null) settings.WindowHeight = (int)numHeight.Value;
+            if (chkUseNativeLayeredWindow != null) settings.UseNativeLayeredWindow = chkUseNativeLayeredWindow.Checked;
+            if (cboVoices != null) settings.TtsVoiceName = cboVoices.Text;
+            if (trkRate != null) settings.TtsRate = trkRate.Value;
+            if (trkVolume != null) settings.TtsVolume = trkVolume.Value;
+            if (txtModelPath != null) settings.ModelPath = txtModelPath.Text;
+            if (txtKnowledgeBasePath != null) settings.KnowledgeBasePath = txtKnowledgeBasePath.Text;
+            if (chkUseGPU != null) settings.UseGPU = chkUseGPU.Checked;
+            if (chkEnableCloudFallback != null) settings.EnableCloudFallback = chkEnableCloudFallback.Checked;
+            if (txtCloudAPIKey != null) settings.CloudAPIKey = txtCloudAPIKey.Text;
+            if (txtCloudAPIEndpoint != null) settings.CloudAPIEndpoint = txtCloudAPIEndpoint.Text;
+        }private void BtnSave_Click(object? sender, EventArgs e)
         {
             SaveSettingsFromUI(_currentSettings);
+            _currentSettings.Save(); // Save to file
             // 触发设置更改事件
-            Logger.LogInfo("保存设置并触发SettingsChanged事件");
             SettingsChanged?.Invoke(this, new SettingsChangedEventArgs(_currentSettings));
             MessageBox.Show("设置已保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            Logger.LogInfo("保存后隐藏设置窗口");
             this.Hide(); // 保存后隐藏窗口
-            
-            // 确保主窗体重新获得焦点
-            if (Owner != null)
-            {
-                Logger.LogInfo("主窗体重新获得焦点");
-                Owner.Activate();
-                Owner.Focus();
-                // 确保主窗体可以接收键盘事件
-                if (Owner is MainForm mainForm)
-                {
-                    Logger.LogInfo("重新设置主窗体键盘事件处理");
-                    mainForm.ResetKeyboardHandling();
-                }
-            }
         }
 
         private void BtnScriptManager_Click(object? sender, EventArgs e)
@@ -500,13 +462,11 @@ namespace CoreApplication
                 _scriptPlayerForm.WindowState = FormWindowState.Normal;
             }
             _scriptPlayerForm.BringToFront();
-        }
-
-        private void BtnAIManager_Click(object? sender, EventArgs e)
+        }        private void BtnAIManager_Click(object? sender, EventArgs e)
         {
             if (_aiManagerForm == null || _aiManagerForm.IsDisposed)
             {
-                _aiManagerForm = new AIManagerForm(_aiService);
+                _aiManagerForm = new AIManagerForm(_aiService, _currentSettings);
             }
             _aiManagerForm.Show();
             if (_aiManagerForm.WindowState == FormWindowState.Minimized)
@@ -514,24 +474,6 @@ namespace CoreApplication
                 _aiManagerForm.WindowState = FormWindowState.Normal;
             }
             _aiManagerForm.BringToFront();
-        }        private void SettingsForm_FormClosing(object? sender, FormClosingEventArgs e)
-        {
-            if (e.CloseReason == CloseReason.UserClosing)
-            {
-                e.Cancel = true; // 取消关闭
-                this.Hide(); // 改为隐藏
-                Logger.LogInfo("设置界面已隐藏");
-            }
-        }        private void SettingsForm_Activated(object? sender, EventArgs e)
-        {
-            // 窗口激活时不重新加载设置，避免覆盖用户正在编辑的状态
-            Logger.LogInfo("设置界面已激活");
-        }
-
-        private void SettingsForm_Deactivate(object? sender, EventArgs e)
-        {
-            // 窗口失去焦点时的处理
-            Logger.LogInfo("设置界面失去焦点");
         }
 
         protected override void Dispose(bool disposing)
@@ -545,65 +487,6 @@ namespace CoreApplication
                 _aiManagerForm?.Dispose();
             }
             base.Dispose(disposing);
-        }
-
-        // 快捷键管理将在 MainForm 中实现，用于显示/隐藏此窗口
-
-        private void LoadSettings()
-        {
-            try
-            {
-                // 加载当前设置到UI控件
-                txtStreamAddress.Text = _currentSettings.StreamAddress;
-                txtWebSocketAddress.Text = _currentSettings.WebSocketServerAddress;
-                
-                // 抠像设置
-                btnChromaKeyColor.BackColor = _currentSettings.ChromaKeyColor;
-                numChromaKeyTolerance.Value = _currentSettings.ChromaKeyTolerance;
-                
-                // 窗口设置
-                chkTopMost.Checked = _currentSettings.TopMostEnabled;
-                chkClickThrough.Checked = _currentSettings.ClickThroughEnabled;
-                numWidth.Value = _currentSettings.WindowWidth;
-                numHeight.Value = _currentSettings.WindowHeight;
-                
-                // TTS设置
-                cboVoices.Text = _currentSettings.TtsVoiceName;
-                trkRate.Value = _currentSettings.TtsRate;
-                trkVolume.Value = _currentSettings.TtsVolume;
-
-                // AI设置
-                txtModelPath.Text = _currentSettings.ModelPath;
-                txtKnowledgeBasePath.Text = _currentSettings.KnowledgeBasePath;
-                chkUseGPU.Checked = _currentSettings.UseGPU;
-                chkEnableCloudFallback.Checked = _currentSettings.EnableCloudFallback;
-                txtCloudAPIKey.Text = _currentSettings.CloudAPIKey;
-                txtCloudAPIEndpoint.Text = _currentSettings.CloudAPIEndpoint;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("加载设置时发生错误", ex);
-                MessageBox.Show(
-                    $"加载设置时发生错误：{ex.Message}",
-                    "设置错误",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-            }
-        }        private void SettingsForm_VisibleChanged(object? sender, EventArgs e)
-        {
-            Logger.LogInfo($"设置窗口可见性改变: {this.Visible}");
-            if (this.Visible)
-            {
-                Logger.LogInfo("设置界面已显示");
-                this.BringToFront();
-                this.Activate();
-                // 不重新加载设置，避免覆盖用户正在编辑的状态
-            }
-            else
-            {
-                Logger.LogInfo("设置界面已隐藏");
-            }
         }
     }
 }
