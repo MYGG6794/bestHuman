@@ -16,6 +16,11 @@ namespace CoreApplication
         private Color _chromaKeyColor = Color.Green; 
         private int _tolerance = 30; 
         private bool _enableChromaKey = false;
+        
+        // 防抖机制相关
+        private System.Windows.Forms.Timer? _updateTimer;
+        private DateTime _lastUpdateTime = DateTime.MinValue;
+        private const int UPDATE_DEBOUNCE_MS = 100; // 100毫秒防抖
 
         // 属性
         [System.ComponentModel.Browsable(false)]
@@ -117,7 +122,8 @@ namespace CoreApplication
 
             _webView = new WebView2
             {
-                Dock = DockStyle.Fill
+                Dock = DockStyle.Fill,
+                BackColor = Color.Lime // 关键：控件背景色与主窗体一致
             };
             // No longer adding to Controls here, ApplyDisplayMode will do it.
 
@@ -127,9 +133,85 @@ namespace CoreApplication
                 Logger.LogInfo("WebView2 初始化成功");
                 _isInitialized = true;
 
-                // 设置页面背景透明
-                _webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
-                _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                // 设置WebView2控件和父控件透明
+                _webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+                this.BackColor = Color.Lime;
+                this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+
+                // 设置UserAgent为标准Chrome
+                try {
+                    string ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+                    _webView.CoreWebView2.Settings.UserAgent = ua;
+                    Logger.LogInfo($"WebView2 UserAgent已设置: {ua}");
+                } catch (Exception ex) {
+                    Logger.LogWarning($"设置UserAgent失败: {ex.Message}");
+                }
+
+                // 订阅导航完成/失败事件
+                _webView.CoreWebView2.NavigationCompleted += (s, e) => {
+                    Logger.LogInfo($"NavigationCompleted: {e.IsSuccess}, Error: {e.WebErrorStatus}");
+                    if (!e.IsSuccess) MessageBox.Show($"WebView2导航失败: {e.WebErrorStatus}");
+                };
+                _webView.CoreWebView2.NavigationStarting += (s, e) => {
+                    Logger.LogInfo($"NavigationStarting: {e.Uri}");
+                };
+                // _webView.CoreWebView2.NavigationFailed += (s, e) => {
+                //     Logger.LogError($"NavigationFailed: {e.WebErrorStatus}");
+                //     MessageBox.Show($"WebView2导航失败: {e.WebErrorStatus}");
+                // };
+
+                // 启用开发者工具
+                try {
+                    _webView.CoreWebView2.OpenDevToolsWindow();
+                } catch { }
+
+                // 注入严格canvas抠像脚本
+                string chromaJs = @"
+(function() {
+    function isGreen(r, g, b) {
+        // 绿色分量高且远高于红蓝，且不是白色
+        return (
+            g > 180 &&
+            g > r + 40 &&
+            g > b + 40 &&
+            !(r > 200 && g > 200 && b > 200) // 排除白色
+        );
+    }
+    function applyChromaKey() {
+        var video = document.querySelector('video');
+        if (!video) return setTimeout(applyChromaKey, 500);
+        var canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.style.position = 'absolute';
+        canvas.style.left = video.offsetLeft + 'px';
+        canvas.style.top = video.offsetTop + 'px';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.zIndex = 9999;
+        video.parentElement.appendChild(canvas);
+        video.style.visibility = 'hidden';
+        var ctx = canvas.getContext('2d');
+        function render() {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var data = img.data;
+            for (var i = 0; i < data.length; i += 4) {
+                var r = data[i], g = data[i+1], b = data[i+2];
+                if (isGreen(r, g, b)) {
+                    data[i+3] = 0;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            requestAnimationFrame(render);
+        }
+        render();
+    }
+    document.body.style.background = 'transparent';
+    document.documentElement.style.background = 'transparent';
+    setTimeout(applyChromaKey, 1000);
+})();
+";
+                await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(chromaJs);
 
                 // 启用透明背景
                 _webView.CoreWebView2.Settings.IsGeneralAutofillEnabled = false;
@@ -243,162 +325,106 @@ namespace CoreApplication
                     int targetR = _chromaKeyColor.R;
                     int targetG = _chromaKeyColor.G;
                     int targetB = _chromaKeyColor.B;
-                      // Canvas像素级抠像处理 - 支持自定义颜色 + 强化透明穿透
+                    int tolerance = _tolerance; // 兼容原有容差
                     script = $@"
                         (function() {{
-                            console.log('🎯 Canvas像素级抠像处理 [v11-透明穿透增强] - 颜色: R={targetR}, G={targetG}, B={targetB}');
+                            console.log('🎯 Canvas像素级抠像处理 [HSL精准绿色抠像] - 颜色: R={targetR}, G={targetG}, B={targetB}');
                             
-                            // 首先设置页面完全透明
-                            document.body.style.cssText = `
-                                background: transparent !important;
-                                margin: 0 !important;
-                                padding: 0 !important;
-                                overflow: hidden !important;
-                            `;
-                            document.documentElement.style.cssText = `
-                                background: transparent !important;
-                                margin: 0 !important;
-                                padding: 0 !important;
-                                overflow: hidden !important;
-                            `;
+                            // 创建全局参数对象，供后续参数更新使用
+                            window.chromaKeyParams = {{
+                                targetR: {targetR},
+                                targetG: {targetG},
+                                targetB: {targetB},
+                                greenThreshold: 100,
+                                colorTolerance: {tolerance},
+                                minBrightness: 50,
+                                maxBrightness: 255
+                            }};
+                            console.log('✅ 抠像参数对象已初始化', window.chromaKeyParams);
                             
-                            // 查找视频元素
+                            document.body.style.cssText = `background: transparent !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important;`;
+                            document.documentElement.style.cssText = `background: transparent !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important;`;
                             const video = document.querySelector('video');
-                            if (!video) {{
-                                console.log('❌ 未找到视频元素，稍后重试');
-                                setTimeout(arguments.callee, 1000);
-                                return;
-                            }}
-                            
-                            // 等待视频加载
-                            if (video.videoWidth === 0 || video.videoHeight === 0) {{
-                                console.log('⏳ 等待视频尺寸加载...');
-                                setTimeout(arguments.callee, 1000);
-                                return;
-                            }}
-                            
-                            console.log('✅ 找到视频元素，尺寸:', video.videoWidth + 'x' + video.videoHeight);
-                            
-                            // 移除旧的Canvas
+                            if (!video) {{ setTimeout(arguments.callee, 1000); return; }}
+                            if (video.videoWidth === 0 || video.videoHeight === 0) {{ setTimeout(arguments.callee, 1000); return; }}
                             const oldCanvas = document.getElementById('chroma-canvas');
                             if (oldCanvas) oldCanvas.remove();
-                            
-                            // 隐藏原视频，完全由Canvas接管
-                            video.style.cssText = `
-                                opacity: 0 !important;
-                                visibility: hidden !important;
-                                position: absolute !important;
-                                z-index: -1000 !important;
-                            `;
-                            
-                            // 创建Canvas元素
+                            video.style.cssText = `opacity: 0 !important; visibility: hidden !important; position: absolute !important; z-index: -1000 !important;`;
                             const canvas = document.createElement('canvas');
                             canvas.id = 'chroma-canvas';
                             canvas.width = video.videoWidth;
                             canvas.height = video.videoHeight;
-                            canvas.style.cssText = `
-                                position: fixed !important;
-                                top: 0 !important;
-                                left: 0 !important;
-                                width: 100% !important;
-                                height: 100% !important;
-                                z-index: 9999 !important;
-                                pointer-events: none !important;
-                                background: transparent !important;
-                                object-fit: contain !important;
-                            `;
-                            
+                            canvas.style.cssText = `position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; z-index: 9999 !important; pointer-events: none !important; background: transparent !important; object-fit: contain !important;`;
                             const ctx = canvas.getContext('2d', {{ alpha: true }});
                             ctx.globalCompositeOperation = 'source-over';
-                            
-                            // 将Canvas插入到页面顶层
                             document.body.appendChild(canvas);
-                            
-                            // 抠像参数 - 目标颜色
-                            const chromaKey = {{
-                                targetR: {targetR},
-                                targetG: {targetG}, 
-                                targetB: {targetB},
-                                tolerance: {_tolerance}  // 容差
-                            }};
-                            
-                            // 抠像处理函数
-                            function processFrame() {{
-                                if (video.paused || video.ended || video.readyState < 2) {{
-                                    requestAnimationFrame(processFrame);
-                                    return;
+                            // RGB转HSL
+                            function rgb2hsl(r, g, b) {{
+                                r /= 255; g /= 255; b /= 255;
+                                let max = Math.max(r, g, b), min = Math.min(r, g, b);
+                                let h, s, l = (max + min) / 2;
+                                if (max === min) {{ h = s = 0; }}
+                                else {{
+                                    let d = max - min;
+                                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                                    switch (max) {{
+                                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                                        case g: h = (b - r) / d + 2; break;
+                                        case b: h = (r - g) / d + 4; break;
+                                    }}
+                                    h /= 6;
                                 }}
-                                
+                                return [h * 360, s, l];
+                            }}
+                            function processFrame() {{
+                                if (video.paused || video.ended || video.readyState < 2) {{ requestAnimationFrame(processFrame); return; }}
                                 try {{
-                                    // 绘制视频帧到Canvas
                                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                                    
-                                    // 获取像素数据
                                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                                     const data = imageData.data;
                                     
-                                    // 处理每个像素
+                                    // 使用动态参数
+                                    const params = window.chromaKeyParams || {{
+                                        targetR: {targetR}, targetG: {targetG}, targetB: {targetB},
+                                        greenThreshold: 100, colorTolerance: {tolerance}, 
+                                        minBrightness: 50, maxBrightness: 255
+                                    }};
+                                    
                                     for (let i = 0; i < data.length; i += 4) {{
-                                        const r = data[i];
-                                        const g = data[i + 1];
-                                        const b = data[i + 2];
+                                        const r = data[i], g = data[i+1], b = data[i+2];
                                         
-                                        // 检测目标颜色像素 - 使用欧氏距离计算颜色相似度
-                                        const colorDistance = Math.sqrt(
-                                            Math.pow(r - chromaKey.targetR, 2) +
-                                            Math.pow(g - chromaKey.targetG, 2) +
-                                            Math.pow(b - chromaKey.targetB, 2)
-                                        );
+                                        // 亮度过滤
+                                        const brightness = (r + g + b) / 3;
+                                        if (brightness < params.minBrightness || brightness > params.maxBrightness) {{
+                                            continue; // 跳过过亮或过暗的像素
+                                        }}
                                         
-                                        if (colorDistance <= chromaKey.tolerance) {{
-                                            // 将目标颜色像素设为完全透明
-                                            data[i + 3] = 0;
+                                        // 使用动态参数进行绿色判定
+                                        if (g > params.greenThreshold && g > r + 50 && g > b + 50) {{
+                                            data[i+3] = 0; // 设为透明
+                                        }}
+                                        // 或者使用传统RGB距离判定
+                                        else if (params.colorTolerance > 0) {{
+                                            const colorDistance = Math.sqrt(Math.pow(r - params.targetR, 2) + Math.pow(g - params.targetG, 2) + Math.pow(b - params.targetB, 2));
+                                            if (colorDistance <= params.colorTolerance) data[i+3] = 0;
                                         }}
                                     }}
-                                    
-                                    // 更新Canvas
                                     ctx.putImageData(imageData, 0, 0);
-                                }} catch (e) {{
-                                    console.warn('像素处理错误:', e);
-                                }}
-                                
-                                // 继续处理下一帧
+                                }} catch (e) {{ console.warn('像素处理错误:', e); }}
                                 requestAnimationFrame(processFrame);
                             }}
-                              // 启动抠像处理
-                            console.log('✅ 开始Canvas抠像处理，目标颜色: RGB(' + chromaKey.targetR + ',' + chromaKey.targetG + ',' + chromaKey.targetB + ')');
                             processFrame();
                             
-                            // 添加CSS透明穿透备用方案
+                            // 提供停止函数
+                            window.stopChromaKey = function() {{
+                                console.log('🛑 停止抠像处理');
+                                // 可以在这里添加停止逻辑
+                            }};
+                            
                             setTimeout(() => {{
-                                console.log('🔧 应用CSS透明穿透备用方案');
-                                
-                                // 创建CSS样式
                                 const style = document.createElement('style');
-                                style.textContent = `
-                                    * {{
-                                        background: transparent !important;
-                                    }}
-                                    
-                                    body, html {{
-                                        background: transparent !important;
-                                        backdrop-filter: none !important;
-                                        -webkit-backdrop-filter: none !important;
-                                    }}
-                                    
-                                    video {{
-                                        mix-blend-mode: multiply !important;
-                                        opacity: 0.01 !important;
-                                    }}
-                                    
-                                    #chroma-canvas {{
-                                        mix-blend-mode: normal !important;
-                                        isolation: isolate !important;
-                                    }}
-                                `;
+                                style.textContent = `* {{background: transparent !important;}} body, html {{background: transparent !important;backdrop-filter: none !important;-webkit-backdrop-filter: none !important;}} video {{mix-blend-mode: multiply !important;opacity: 0.01 !important;}} #chroma-canvas {{mix-blend-mode: normal !important;isolation: isolate !important;}}`;
                                 document.head.appendChild(style);
-                                
-                                console.log('✅ CSS透明穿透方案已应用');
                             }}, 3000);
                         }})();
                     ";
@@ -409,6 +435,17 @@ namespace CoreApplication
                     script = @"
                         (function() {
                             console.log('🎯 禁用抠像处理');
+                            
+                            // 清理参数对象
+                            if (window.chromaKeyParams) {{
+                                delete window.chromaKeyParams;
+                                console.log('✅ 抠像参数对象已清理');
+                            }}
+                            
+                            // 停止处理函数
+                            if (window.stopChromaKey) {{
+                                window.stopChromaKey();
+                            }}
                             
                             // 移除Canvas
                             const canvas = document.getElementById('chroma-canvas');
@@ -436,6 +473,125 @@ namespace CoreApplication
             catch (Exception ex)
             {
                 Logger.LogError($"注入抠像脚本失败: {ex.Message}", ex);
+            }
+        }
+
+        public async void UpdateChromaKeyScript(Color chromaKeyColor, int greenThreshold, int colorTolerance, int minBrightness, int maxBrightness, bool enableChromaKey)
+        {
+            _chromaKeyColor = chromaKeyColor;
+            _tolerance = colorTolerance;
+            _enableChromaKey = enableChromaKey;
+            
+            // 防抖：避免过于频繁的更新
+            var currentTime = DateTime.Now;
+            if ((currentTime - _lastUpdateTime).TotalMilliseconds < UPDATE_DEBOUNCE_MS)
+            {
+                // 如果距离上次更新时间太短，启动或重置定时器
+                if (_updateTimer == null)
+                {
+                    _updateTimer = new System.Windows.Forms.Timer();
+                    _updateTimer.Interval = UPDATE_DEBOUNCE_MS;
+                    _updateTimer.Tick += (s, e) =>
+                    {
+                        _updateTimer.Stop();
+                        _updateTimer = null;
+                        _ = UpdateChromaKeyScriptInternal(chromaKeyColor, greenThreshold, colorTolerance, minBrightness, maxBrightness, enableChromaKey);
+                    };
+                }
+                _updateTimer.Stop();
+                _updateTimer.Start();
+                return;
+            }
+            
+            _lastUpdateTime = currentTime;
+            await UpdateChromaKeyScriptInternal(chromaKeyColor, greenThreshold, colorTolerance, minBrightness, maxBrightness, enableChromaKey);
+        }
+        
+        private async Task UpdateChromaKeyScriptInternal(Color chromaKeyColor, int greenThreshold, int colorTolerance, int minBrightness, int maxBrightness, bool enableChromaKey)
+        {
+            _chromaKeyColor = chromaKeyColor;
+            _tolerance = colorTolerance;
+            _enableChromaKey = enableChromaKey;
+            
+            if (_webView?.CoreWebView2 == null) return;
+            
+            try
+            {
+                int targetR = chromaKeyColor.R;
+                int targetG = chromaKeyColor.G;
+                int targetB = chromaKeyColor.B;
+                
+                if (enableChromaKey)
+                {
+                    // 先检查系统是否已初始化，如果没有则先初始化
+                    string checkScript = @"
+                        (function() {
+                            return window.chromaKeyParams ? 'initialized' : 'not_initialized';
+                        })();
+                    ";
+                    
+                    string checkResult = await _webView.CoreWebView2.ExecuteScriptAsync(checkScript);
+                    checkResult = checkResult.Trim('"'); // 移除引号
+                    
+                    if (checkResult == "not_initialized")
+                    {
+                        Logger.LogWarning("抠像系统未初始化，正在重新初始化...");
+                        // 重新初始化抠像系统
+                        await InjectChromaKeyScript(true);
+                        // 等待一下让初始化完成
+                        await Task.Delay(500);
+                    }
+                    
+                    // 更新参数
+                    string script = $@"
+                        (function() {{
+                            console.log('🔄 实时更新抠像参数: 绿色阈值={greenThreshold}, 容差={colorTolerance}, 亮度={minBrightness}-{maxBrightness}');
+                            
+                            // 更新全局参数
+                            if (window.chromaKeyParams) {{
+                                window.chromaKeyParams.targetR = {targetR};
+                                window.chromaKeyParams.targetG = {targetG};
+                                window.chromaKeyParams.targetB = {targetB};
+                                window.chromaKeyParams.greenThreshold = {greenThreshold};
+                                window.chromaKeyParams.colorTolerance = {colorTolerance};
+                                window.chromaKeyParams.minBrightness = {minBrightness};
+                                window.chromaKeyParams.maxBrightness = {maxBrightness};
+                                console.log('✅ 参数已更新', window.chromaKeyParams);
+                                return 'success';
+                            }} else {{
+                                console.log('❌ 抠像系统初始化失败，无法更新参数');
+                                return 'failed';
+                            }}
+                        }})();
+                    ";
+                    
+                    string result = await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                    result = result.Trim('"');
+                    
+                    if (result == "failed")
+                    {
+                        Logger.LogError("抠像参数更新失败，系统可能未正确初始化");
+                    }
+                }
+                else
+                {
+                    // 禁用抠像时停止处理
+                    string disableScript = @"
+                        (function() {
+                            if (window.stopChromaKey) {
+                                window.stopChromaKey();
+                                console.log('🛑 抠像处理已停止');
+                            }
+                        })();
+                    ";
+                    await _webView.CoreWebView2.ExecuteScriptAsync(disableScript);
+                }
+                
+                Logger.LogInfo($"✅ 抠像参数实时更新完成: 颜色=RGB({targetR},{targetG},{targetB}), 绿色阈值={greenThreshold}, 容差={colorTolerance}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"❌ 更新抠像参数时出错: {ex.Message}", ex);
             }
         }
 
@@ -472,6 +628,13 @@ namespace CoreApplication
             }
         }        public Task LoadStreamAsync(string url)
         {
+            Logger.LogInfo($"=== LoadStreamAsync 调用开始 ===");
+            Logger.LogInfo($"参数 URL: {url}");
+            Logger.LogInfo($"_useNativeWindow: {_useNativeWindow}");
+            Logger.LogInfo($"_isInitialized: {_isInitialized}");
+            Logger.LogInfo($"_webView != null: {_webView != null}");
+            Logger.LogInfo($"_webView?.CoreWebView2 != null: {_webView?.CoreWebView2 != null}");
+            
             if (_useNativeWindow)
             {
                 Logger.LogInfo("Native window mode: Stream loading handled by video capture.");
@@ -483,13 +646,15 @@ namespace CoreApplication
             if (!_isInitialized || _webView?.CoreWebView2 == null)
             {
                 Logger.LogWarning("WebView2 未初始化，无法加载视频流");
+                Logger.LogWarning($"详细状态: _isInitialized={_isInitialized}, _webView={_webView != null}, CoreWebView2={_webView?.CoreWebView2 != null}");
                 return Task.CompletedTask;
             }
 
             try
             {
-                Logger.LogInfo($"加载视频流: {url}");
+                Logger.LogInfo($"正在导航到: {url}");
                 _webView.CoreWebView2.Navigate(url);
+                Logger.LogInfo("Navigate() 方法调用完成");
                 return Task.CompletedTask;
             }
             catch (Exception ex)

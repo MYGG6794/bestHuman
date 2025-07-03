@@ -1,0 +1,394 @@
+Log initialized at 2025/7/3 17:34:55
+2025-07-03 17:34:55 [INFO] [Main] bestHuman 主程序入口已调用
+2025-07-03 17:34:55 [INFO] [Main] 当前工作目录: D:\Projects\bestHuman\bestHuman\CoreApplication
+2025-07-03 17:34:55 [INFO] [Main] 启动参数: 
+2025-07-03 17:34:55 [INFO] [Main] 启动时间: 2025-07-03 17:34:55
+2025-07-03 17:34:55 [INFO] [AppSettings.Load] 读取配置文件路径: D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\appsettings.json
+2025-07-03 17:34:55 [INFO] [AppSettings.Load] 配置文件内容: {
+  "StreamAddress": "http://127.0.0.1:11188/video.html",
+  "WebSocketServerAddress": "ws://localhost:8001",
+  "ChromaKeyColor": {
+    "R": 0,
+    "G": 255,
+    "B": 0,
+    "A": 255,
+    "IsKnownColor": true,
+    "IsEmpty": false,
+    "IsNamedColor": true,
+    "IsSystemColor": false,
+    "Name": "Lime"
+  },
+  "ChromaKeyTolerance": 50,
+  "ChromaKeyGreenThreshold": 75,
+  "ChromaKeyMinBrightness": 12,
+  "ChromaKeyMaxBrightness": 255,
+  "EnableChromaKey": true,
+  "WindowWidth": 1080,
+  "WindowHeight": 1920,
+  "WindowX": -1,
+  "WindowY": -1,
+  "ClickThroughEnabled": false,
+  "TopMostEnabled": true,
+  "TtsVoiceName": "",
+  "TtsRate": 0,
+  "TtsVolume": 100,
+  "UseNativeLayeredWindow": false,
+  "ModelPath": "",
+  "KnowledgeBasePath": "",
+  "UseGPU": false,
+  "EnableCloudFallback": false,
+  "CloudAPIKey": "",
+  "CloudAPIEndpoint": ""
+}
+2025-07-03 17:34:55 [INFO] 使用WebView2窗口模式启动数字人显示。
+2025-07-03 17:34:56 [INFO] MainForm 构造函数开始。
+2025-07-03 17:34:56 [INFO] 主窗口设置为抠像模式 - 抠像颜色背景透明: R=0, G=0, B=0
+2025-07-03 17:34:56 [INFO] 主窗口初始设置 - 尺寸: 800x600, 位置: {X=0,Y=0}
+2025-07-03 17:34:56 [INFO] MainForm 窗体被激活
+2025-07-03 17:34:56 [INFO] 注册全局热键 Alt+F10: 失败
+2025-07-03 17:34:56 [INFO] 注册全局热键 Alt+S: 成功
+2025-07-03 17:34:56 [INFO] 注册全局热键 Alt+C (抠像控制): 成功
+2025-07-03 17:34:56 [INFO] 初始化 WebView2 显示模式
+2025-07-03 17:34:56 [INFO] 开始初始化 WebView2 显示模式
+2025-07-03 17:34:56 [INFO] 窗口加载完成，抠像已启用 - 设置绿色透明
+2025-07-03 17:34:57 [INFO] MainForm 窗体被激活
+2025-07-03 17:34:57 [INFO] 准备加载推流地址: http://127.0.0.1:11188/video.html
+2025-07-03 17:34:57 [INFO] 设置窗口置顶: True
+2025-07-03 17:34:57 [INFO] 启用点击穿透: False
+2025-07-03 17:34:57 [INFO] 非点击穿透模式下重新注册全局热键
+2025-07-03 17:34:57 [INFO] 已注销所有全局热键
+2025-07-03 17:34:57 [INFO] 注册全局热键 Alt+F10: 失败
+2025-07-03 17:34:57 [INFO] 注册全局热键 Alt+S: 成功
+2025-07-03 17:34:57 [INFO] 注册全局热键 Alt+C (抠像控制): 失败
+2025-07-03 17:34:57 [WARNING] 语音识别初始化失败（可能是因为没有麦克风）: Cannot find the requested data item, such as a data key or value.
+2025-07-03 17:34:57 [INFO] 尝试连接到 WebSocket 服务器: ws://localhost:8001
+2025-07-03 17:34:57 [WARNING] 语音识别初始化失败（可能是因为没有麦克风）: Cannot find the requested data item, such as a data key or value.
+2025-07-03 17:34:57 [INFO] MainForm 构造函数结束。
+2025-07-03 17:35:00 [INFO] 开始应用显示模式和加载推流
+2025-07-03 17:35:00 [INFO] Initializing WebView2 mode.
+2025-07-03 17:35:00 [INFO] === LoadStreamAsync 调用开始 ===
+2025-07-03 17:35:00 [INFO] 参数 URL: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:00 [INFO] _useNativeWindow: False
+2025-07-03 17:35:00 [INFO] _isInitialized: False
+2025-07-03 17:35:00 [INFO] _webView != null: True
+2025-07-03 17:35:00 [INFO] _webView?.CoreWebView2 != null: False
+2025-07-03 17:35:00 [WARNING] WebView2 未初始化，无法加载视频流
+2025-07-03 17:35:00 [WARNING] 详细状态: _isInitialized=False, _webView=True, CoreWebView2=False
+2025-07-03 17:35:00 [INFO] 显示模式应用完成
+2025-07-03 17:35:00 [INFO] WebView2 初始化成功
+2025-07-03 17:35:00 [INFO] WebView2 UserAgent已设置: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36
+2025-07-03 17:35:00 [WARNING] WebView2透明设置失败: 控件不支持透明的背景色。
+2025-07-03 17:35:00 [INFO] DigitalHumanDisplay 初始化完成
+2025-07-03 17:35:01 [ERROR] ERROR: WebSocket 连接失败: Unable to connect to the remote server
+Exception: Unable to connect to the remote server
+StackTrace:    at System.Net.WebSockets.WebSocketHandle.ConnectAsync(Uri uri, HttpMessageInvoker invoker, CancellationToken cancellationToken, ClientWebSocketOptions options)
+   at System.Net.WebSockets.ClientWebSocket.ConnectAsyncCore(Uri uri, HttpMessageInvoker invoker, CancellationToken cancellationToken)
+   at CoreApplication.WebSocketClient.ConnectAsync(String uri) in D:\Projects\bestHuman\bestHuman\CoreApplication\WebSocketClient.cs:line 56
+2025-07-03 17:35:01 [ERROR] ERROR: WebSocket 错误: 连接失败: Unable to connect to the remote server
+2025-07-03 17:35:02 [INFO] === LoadStreamAsync 调用开始 ===
+2025-07-03 17:35:02 [INFO] 参数 URL: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:02 [INFO] _useNativeWindow: False
+2025-07-03 17:35:02 [INFO] _isInitialized: True
+2025-07-03 17:35:02 [INFO] _webView != null: True
+2025-07-03 17:35:02 [INFO] _webView?.CoreWebView2 != null: True
+2025-07-03 17:35:02 [INFO] 正在导航到: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:02 [INFO] Navigate() 方法调用完成
+2025-07-03 17:35:02 [INFO] 推流地址加载完成
+2025-07-03 17:35:02 [INFO] WebView2 显示模式初始化完成
+2025-07-03 17:35:02 [INFO] NavigationStarting: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:02 [INFO] NavigationCompleted: True, Error: Unknown
+2025-07-03 17:35:02 [INFO] 页面导航完成: True
+2025-07-03 17:35:05 [INFO] WebView2 调试模式已启用
+2025-07-03 17:35:05 [INFO] 页面加载完成，开始注入抠像脚本
+2025-07-03 17:35:05 [INFO] 抠像脚本注入完成: 启用 - 目标颜色: R=0, G=0, B=0
+2025-07-03 17:35:06 [INFO] 定时检查：主窗体无焦点，尝试重获焦点
+2025-07-03 17:35:06 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:06 [INFO] 重置键盘事件处理
+2025-07-03 17:35:06 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=True, Enabled=True, TopLevel=True
+2025-07-03 17:35:16 [INFO] 定时检查：主窗体无焦点，尝试重获焦点
+2025-07-03 17:35:16 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:16 [INFO] 重置键盘事件处理
+2025-07-03 17:35:16 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=True, Enabled=True, TopLevel=True
+2025-07-03 17:35:17 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:21 [INFO] 全局热键被触发，ID: 2
+2025-07-03 17:35:21 [INFO] 通过全局热键触发设置窗口切换
+2025-07-03 17:35:21 [INFO] ToggleSettingsWindow调用：当前窗口状态 - 存在:True，可见:False，已释放:False
+2025-07-03 17:35:21 [INFO] 显示设置窗口并激活。
+2025-07-03 17:35:24 [INFO] ToggleChromaKeyControlWindow调用：当前窗口状态 - 存在:False，可见:，已释放:
+2025-07-03 17:35:24 [INFO] 创建新的抠像控制窗口实例。
+2025-07-03 17:35:24 [INFO] [AppSettings.Load] 读取配置文件路径: D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\appsettings.json
+2025-07-03 17:35:24 [INFO] [AppSettings.Load] 配置文件内容: {
+  "StreamAddress": "http://127.0.0.1:11188/video.html",
+  "WebSocketServerAddress": "ws://localhost:8001",
+  "ChromaKeyColor": {
+    "R": 0,
+    "G": 255,
+    "B": 0,
+    "A": 255,
+    "IsKnownColor": true,
+    "IsEmpty": false,
+    "IsNamedColor": true,
+    "IsSystemColor": false,
+    "Name": "Lime"
+  },
+  "ChromaKeyTolerance": 50,
+  "ChromaKeyGreenThreshold": 75,
+  "ChromaKeyMinBrightness": 12,
+  "ChromaKeyMaxBrightness": 255,
+  "EnableChromaKey": true,
+  "WindowWidth": 1080,
+  "WindowHeight": 1920,
+  "WindowX": -1,
+  "WindowY": -1,
+  "ClickThroughEnabled": false,
+  "TopMostEnabled": true,
+  "TtsVoiceName": "",
+  "TtsRate": 0,
+  "TtsVolume": 100,
+  "UseNativeLayeredWindow": false,
+  "ModelPath": "",
+  "KnowledgeBasePath": "",
+  "UseGPU": false,
+  "EnableCloudFallback": false,
+  "CloudAPIKey": "",
+  "CloudAPIEndpoint": ""
+}
+2025-07-03 17:35:24 [INFO] 显示抠像控制窗口并激活。
+2025-07-03 17:35:24 [INFO] 重置抠像控制窗口位置到屏幕中心。
+2025-07-03 17:35:26 [INFO] 定时检查：主窗体无焦点，尝试重获焦点
+2025-07-03 17:35:26 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:26 [INFO] 重置键盘事件处理
+2025-07-03 17:35:26 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=False, Enabled=True, TopLevel=True
+2025-07-03 17:35:27 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:27 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=62, 容差=50, 亮度=12-255
+2025-07-03 17:35:27 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:27 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:27 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=62, 容差=50
+2025-07-03 17:35:27 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:27 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=65, 容差=50, 亮度=12-255
+2025-07-03 17:35:27 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:27 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:27 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=65, 容差=50
+2025-07-03 17:35:28 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:28 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:28 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=67, 容差=50, 亮度=12-255
+2025-07-03 17:35:28 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:28 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:28 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=67, 容差=50
+2025-07-03 17:35:28 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:29 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:30 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:30 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=50, 亮度=12-255
+2025-07-03 17:35:30 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:30 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:30 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=50
+2025-07-03 17:35:31 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:31 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:31 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=25, 亮度=12-255
+2025-07-03 17:35:31 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:31 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:31 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=25
+2025-07-03 17:35:32 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:32 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=124, 亮度=12-255
+2025-07-03 17:35:32 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:32 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:32 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=124
+2025-07-03 17:35:32 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:32 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:32 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=89, 亮度=12-255
+2025-07-03 17:35:32 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:32 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:32 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=89
+2025-07-03 17:35:33 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:33 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=29, 亮度=12-255
+2025-07-03 17:35:33 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:33 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:33 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:33 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=29
+2025-07-03 17:35:33 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:33 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=17, 亮度=12-255
+2025-07-03 17:35:33 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:33 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:33 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=17
+2025-07-03 17:35:33 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:33 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:33 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=14, 亮度=12-255
+2025-07-03 17:35:33 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:33 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:33 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=14
+2025-07-03 17:35:34 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:34 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:34 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:34 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=12-255
+2025-07-03 17:35:34 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:34 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:34 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:34 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:35 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:36 [INFO] 定时检查：主窗体无焦点，尝试重获焦点
+2025-07-03 17:35:36 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:36 [INFO] 重置键盘事件处理
+2025-07-03 17:35:36 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=False, Enabled=True, TopLevel=True
+2025-07-03 17:35:36 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:36 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=72-255
+2025-07-03 17:35:36 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:36 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:36 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:37 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:37 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=0-255
+2025-07-03 17:35:37 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:37 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:37 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:37 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:38 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:38 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:38 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=31-255
+2025-07-03 17:35:38 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:38 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:38 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:38 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:38 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=14-255
+2025-07-03 17:35:38 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:38 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:38 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:39 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:39 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:39 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-255
+2025-07-03 17:35:39 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:39 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:39 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:39 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:40 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:40 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-226
+2025-07-03 17:35:40 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:40 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:40 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:40 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:41 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:41 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-129
+2025-07-03 17:35:41 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:41 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:41 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:41 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:41 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:41 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-130
+2025-07-03 17:35:41 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:41 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:41 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:42 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:42 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:42 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-220
+2025-07-03 17:35:42 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:42 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:42 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:42 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:43 [INFO] ChromaKeyControlForm_ChromaKeyChanged 事件触发。
+2025-07-03 17:35:43 [INFO] 实时更新抠像参数: 颜色=Color [Empty], 绿色阈值=77, 容差=18, 亮度=21-220
+2025-07-03 17:35:43 [INFO] Windows API强制透明设置完成，颜色值: 0x000000 (R=0, G=0, B=0)
+2025-07-03 17:35:43 [INFO] 抠像参数已实时更新并保存。
+2025-07-03 17:35:43 [INFO] ✅ 抠像参数实时更新完成: 颜色=RGB(0,0,0), 绿色阈值=77, 容差=18
+2025-07-03 17:35:43 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:44 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:45 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:46 [INFO] 定时检查：主窗体拥有焦点，键盘输入正常
+2025-07-03 17:35:54 [INFO] [AppSettings.Load] 读取配置文件路径: D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\appsettings.json
+2025-07-03 17:35:54 [INFO] [AppSettings.Load] 配置文件内容: {
+  "StreamAddress": "http://127.0.0.1:11188/video.html",
+  "WebSocketServerAddress": "ws://localhost:8001",
+  "ChromaKeyColor": {
+    "R": 0,
+    "G": 0,
+    "B": 0,
+    "A": 0,
+    "IsKnownColor": false,
+    "IsEmpty": true,
+    "IsNamedColor": false,
+    "IsSystemColor": false,
+    "Name": "0"
+  },
+  "ChromaKeyTolerance": 18,
+  "ChromaKeyGreenThreshold": 77,
+  "ChromaKeyMinBrightness": 21,
+  "ChromaKeyMaxBrightness": 220,
+  "EnableChromaKey": true,
+  "WindowWidth": 1080,
+  "WindowHeight": 1920,
+  "WindowX": -1,
+  "WindowY": -1,
+  "ClickThroughEnabled": false,
+  "TopMostEnabled": true,
+  "TtsVoiceName": "",
+  "TtsRate": 0,
+  "TtsVolume": 100,
+  "UseNativeLayeredWindow": false,
+  "ModelPath": "",
+  "KnowledgeBasePath": "",
+  "UseGPU": false,
+  "EnableCloudFallback": false,
+  "CloudAPIKey": "",
+  "CloudAPIEndpoint": ""
+}
+2025-07-03 17:35:54 [INFO] SettingsForm_SettingsChanged 事件触发。
+2025-07-03 17:35:54 [INFO] 应用设置中...
+2025-07-03 17:35:54 [INFO] Windows API强制透明设置完成，颜色值: 0xF0F0F0 (R=240, G=240, B=240)
+2025-07-03 17:35:54 [INFO] 启用抠像，设置窗口透明色为: R=240, G=240, B=240
+2025-07-03 17:35:54 [INFO] 设置抠像功能: True
+2025-07-03 17:35:54 [INFO] 更新数字人显示控件抠像设置: True, 颜色: R=240, G=240, B=240
+2025-07-03 17:35:54 [INFO] === LoadStreamAsync 调用开始 ===
+2025-07-03 17:35:54 [INFO] 参数 URL: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:54 [INFO] _useNativeWindow: False
+2025-07-03 17:35:54 [INFO] _isInitialized: True
+2025-07-03 17:35:54 [INFO] _webView != null: True
+2025-07-03 17:35:54 [INFO] _webView?.CoreWebView2 != null: True
+2025-07-03 17:35:54 [INFO] 正在导航到: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:54 [INFO] Navigate() 方法调用完成
+2025-07-03 17:35:54 [INFO] 设置窗口置顶: True
+2025-07-03 17:35:54 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:54 [INFO] 启用点击穿透: True
+2025-07-03 17:35:54 [INFO] 点击穿透模式下重新注册全局热键
+2025-07-03 17:35:54 [INFO] 已注销所有全局热键
+2025-07-03 17:35:54 [INFO] 注册全局热键 Alt+F10: 失败
+2025-07-03 17:35:54 [INFO] 注册全局热键 Alt+S: 成功
+2025-07-03 17:35:54 [INFO] 注册全局热键 Alt+C (抠像控制): 失败
+2025-07-03 17:35:54 [INFO] 设置应用完成。
+2025-07-03 17:35:54 [INFO] 尝试连接到 WebSocket 服务器: ws://localhost:8001
+2025-07-03 17:35:55 [INFO] 重置键盘事件处理
+2025-07-03 17:35:55 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=False, Enabled=True, TopLevel=True
+2025-07-03 17:35:55 [INFO] 语音合成开始播放。
+2025-07-03 17:35:55 [INFO] 语音合成开始播放事件。
+2025-07-03 17:35:55 [WARNING] WebSocket 未连接，无法发送消息。
+2025-07-03 17:35:55 [ERROR] ERROR: WebSocket 错误: WebSocket 未连接。
+2025-07-03 17:35:55 [INFO] NavigationStarting: http://127.0.0.1:11188/video.html
+2025-07-03 17:35:55 [INFO] 抠像脚本注入完成: 启用 - 目标颜色: R=240, G=240, B=240
+2025-07-03 17:35:55 [INFO] NavigationCompleted: True, Error: Unknown
+2025-07-03 17:35:55 [INFO] 页面导航完成: True
+2025-07-03 17:35:55 [INFO] 透明设置二次确认完成
+2025-07-03 17:35:56 [INFO] 定时检查：主窗体无焦点，尝试重获焦点
+2025-07-03 17:35:56 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:56 [INFO] 重置键盘事件处理
+2025-07-03 17:35:56 [INFO] 主窗体键盘事件重置完成，KeyPreview=True, Focused=True, Enabled=True, TopLevel=True
+2025-07-03 17:35:56 [INFO] MainForm 窗体被激活
+2025-07-03 17:35:57 [INFO] WebSocket 连接成功。
+2025-07-03 17:35:57 [INFO] WebSocket 连接成功事件。
+2025-07-03 17:35:57 [WARNING] 语音识别引擎未初始化，请检查音频输入设备。
+2025-07-03 17:35:57 [ERROR] ERROR: 语音服务错误: 语音识别引擎未初始化，请检查音频输入设备。
+2025-07-03 17:35:57 [INFO] WebView2 调试模式已启用
+2025-07-03 17:35:57 [INFO] 页面加载完成，开始注入抠像脚本
+2025-07-03 17:35:57 [INFO] 语音合成播放完成。
+2025-07-03 17:35:57 [INFO] 语音合成播放完成事件。
+2025-07-03 17:35:57 [INFO] 发送 WebSocket 消息: {"type": "tts_status", "status": "ended"}
+2025-07-03 17:35:57 [INFO] 抠像脚本注入完成: 启用 - 目标颜色: R=240, G=240, B=240
+2025-07-03 17:36:04 [INFO] MainForm 窗体被激活
+2025-07-03 17:36:06 [INFO] 定时检查：主窗体拥有焦点，键盘输入正常
+2025-07-03 17:36:16 [INFO] 已注销所有全局热键
+2025-07-03 17:36:16 [INFO] 尝试断开 WebSocket 连接。
+2025-07-03 17:36:16 [ERROR] ERROR: 断开连接过程中发生错误: The WebSocket is in an invalid state ('Aborted') for this operation. Valid states are: 'Open, CloseReceived, CloseSent'
+Exception: The WebSocket is in an invalid state ('Aborted') for this operation. Valid states are: 'Open, CloseReceived, CloseSent'
+StackTrace:    at System.Net.WebSockets.WebSocketValidate.ThrowIfInvalidState(WebSocketState currentState, Boolean isDisposed, Exception innerException, WebSocketState[] validStates)
+   at System.Net.WebSockets.ManagedWebSocket.ThrowIfInvalidState(WebSocketState[] validStates)
+   at System.Net.WebSockets.ManagedWebSocket.CloseAsync(WebSocketCloseStatus closeStatus, String statusDescription, CancellationToken cancellationToken)
+--- End of stack trace from previous location ---
+   at CoreApplication.WebSocketClient.DisconnectAsync() in D:\Projects\bestHuman\bestHuman\CoreApplication\WebSocketClient.cs:line 81
+2025-07-03 17:36:16 [ERROR] ERROR: WebSocket 错误: 断开连接错误: The WebSocket is in an invalid state ('Aborted') for this operation. Valid states are: 'Open, CloseReceived, CloseSent'
+2025-07-03 17:36:16 [INFO] WebSocket 消息接收操作已取消。
+2025-07-03 17:36:16 [INFO] 应用程序已关闭。

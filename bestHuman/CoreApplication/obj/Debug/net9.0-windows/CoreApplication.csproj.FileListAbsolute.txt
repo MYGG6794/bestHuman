@@ -1,9 +1,3 @@
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.csproj.AssemblyReference.cache
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.GeneratedMSBuildEditorConfig.editorconfig
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.AssemblyInfoInputs.cache
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.AssemblyInfo.cs
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.csproj.CoreCompileInputs.cache
-D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.sourcelink.json
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win-x86\native\WebView2Loader.dll
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win-x64\native\WebView2Loader.dll
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win-arm64\native\WebView2Loader.dll
@@ -39,6 +33,12 @@ D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtime
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win-x86\native\onnxruntime_providers_shared.dll
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win-x86\native\onnxruntime_providers_shared.lib
 D:\Projects\bestHuman\bestHuman\CoreApplication\bin\Debug\net9.0-windows\runtimes\win\lib\net9.0\System.Speech.dll
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.csproj.AssemblyReference.cache
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.AssemblyInfoInputs.cache
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.AssemblyInfo.cs
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.csproj.CoreCompileInputs.cache
+D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.sourcelink.json
 D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreAppl.3B7A61D8.Up2Date
 D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\CoreApplication.dll
 D:\Projects\bestHuman\bestHuman\CoreApplication\obj\Debug\net9.0-windows\refint\CoreApplication.dll

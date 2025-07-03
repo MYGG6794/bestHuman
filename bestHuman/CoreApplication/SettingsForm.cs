@@ -9,13 +9,19 @@ namespace CoreApplication
     public partial class SettingsForm : Form
     {
         // 定义事件，用于通知主窗口设置已更改
-        public event EventHandler<SettingsChangedEventArgs>? SettingsChanged;        // 假设的配置类
+        public event EventHandler<SettingsChangedEventArgs>? SettingsChanged;
+        
+        // 定义事件，用于请求打开抠像控制窗口
+        public event Action? OnOpenChromaKeyControl;        // 假设的配置类
         public class AppSettings
         {            
-            public string StreamAddress { get; set; } = "http://127.0.0.1:11188/video.html";
+            public string StreamAddress { get; set; } = "http://127.0.0.1:13000/video.html";
             public string WebSocketServerAddress { get; set; } = "ws://localhost:8080";
             public Color ChromaKeyColor { get; set; } = Color.Green;
             public int ChromaKeyTolerance { get; set; } = 30; // For WebView2 or future use
+            public int ChromaKeyGreenThreshold { get; set; } = 100; // 绿色阈值
+            public int ChromaKeyMinBrightness { get; set; } = 50; // 最小亮度
+            public int ChromaKeyMaxBrightness { get; set; } = 255; // 最大亮度
             public bool EnableChromaKey { get; set; } = false; // Added EnableChromaKey property
             public int WindowWidth { get; set; } = 800;
             public int WindowHeight { get; set; } = 600;
@@ -47,11 +53,17 @@ namespace CoreApplication
                 try
                 {
                     string filePath = GetSettingsFilePath();
+                    Logger.LogInfo($"[AppSettings.Load] 读取配置文件路径: {filePath}");
                     if (File.Exists(filePath))
                     {
                         string json = File.ReadAllText(filePath);
+                        Logger.LogInfo($"[AppSettings.Load] 配置文件内容: {json}");
                         var settings = JsonSerializer.Deserialize<AppSettings>(json);
                         return settings ?? new AppSettings();
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"[AppSettings.Load] 配置文件不存在，使用默认设置");
                     }
                 }
                 catch (Exception ex)
@@ -98,6 +110,7 @@ namespace CoreApplication
         private TextBox txtWebSocketAddress = null!;
         private CheckBox chkEnableChromaKey = null!; // 添加启用抠像的复选框字段
         private Button btnChromaKeyColor = null!;
+        private Button btnChromaKeyControl = null!; // 抠像实时控制按钮
         private NumericUpDown numChromaKeyTolerance = null!;
         private CheckBox chkTopMost = null!;
         private CheckBox chkClickThrough = null!;
@@ -215,17 +228,20 @@ namespace CoreApplication
             chkEnableChromaKey = new CheckBox { Text = "启用抠像功能", Location = new Point(10, 25), AutoSize = true };
             
             btnChromaKeyColor = new Button { Text = "选择背景色", Location = new Point(10, 55), Width = 100 };
-            var lblTolerance = new Label { Text = "容差:", Location = new Point(120, 57), AutoSize = true };
+            btnChromaKeyControl = new Button { Text = "实时调节", Location = new Point(250, 55), Width = 100 };
+            var lblTolerance = new Label { Text = "容差(只读):", Location = new Point(120, 57), AutoSize = true };
             numChromaKeyTolerance = new NumericUpDown 
             { 
-                Location = new Point(170, 55), 
+                Location = new Point(180, 55), 
                 Width = 60,
                 Minimum = 0,
                 Maximum = 100,
-                Value = 30
+                Value = 30,
+                ReadOnly = true,  // 设为只读，由抠像控制面板管理
+                Enabled = false   // 禁用编辑
             };
             
-            grpChromaKey.Controls.AddRange(new Control[] { chkEnableChromaKey, btnChromaKeyColor, lblTolerance, numChromaKeyTolerance });
+            grpChromaKey.Controls.AddRange(new Control[] { chkEnableChromaKey, btnChromaKeyColor, btnChromaKeyControl, lblTolerance, numChromaKeyTolerance });
               // 窗口设置
             var grpWindow = new GroupBox { Text = "窗口设置", Location = new Point(10, 210), Size = new Size(540, 150) }; // 调整位置到 210
             chkTopMost = new CheckBox { Text = "窗口置顶", Location = new Point(10, 25), AutoSize = true };
@@ -379,6 +395,12 @@ namespace CoreApplication
                 }
             };
             
+            btnChromaKeyControl.Click += (s, e) =>
+            {
+                // 触发抠像控制窗口打开
+                OnOpenChromaKeyControl?.Invoke();
+            };
+            
             chkEnableCloudFallback.CheckedChanged += (s, e) =>
             {
                 txtCloudAPIKey.Enabled = chkEnableCloudFallback.Checked;
@@ -390,7 +412,7 @@ namespace CoreApplication
             txtWebSocketAddress.Text = settings.WebSocketServerAddress;
             chkEnableChromaKey.Checked = settings.EnableChromaKey; // 加载抠像启用状态
             btnChromaKeyColor.BackColor = settings.ChromaKeyColor;
-            numChromaKeyTolerance.Value = settings.ChromaKeyTolerance;
+            numChromaKeyTolerance.Value = settings.ChromaKeyTolerance; // 显示当前值，但控件已设为只读
             chkTopMost.Checked = settings.TopMostEnabled;
             chkClickThrough.Checked = settings.ClickThroughEnabled;
             numWidth.Value = settings.WindowWidth;
@@ -411,7 +433,13 @@ namespace CoreApplication
             if (txtWebSocketAddress != null) settings.WebSocketServerAddress = txtWebSocketAddress.Text;
             if (chkEnableChromaKey != null) settings.EnableChromaKey = chkEnableChromaKey.Checked; // 保存抠像启用状态
             if (btnChromaKeyColor != null) settings.ChromaKeyColor = btnChromaKeyColor.BackColor;
-            if (numChromaKeyTolerance != null) settings.ChromaKeyTolerance = (int)numChromaKeyTolerance.Value;
+            // 移除：不再保存 ChromaKeyTolerance，此参数由抠像控制面板专门管理
+            // if (numChromaKeyTolerance != null) settings.ChromaKeyTolerance = (int)numChromaKeyTolerance.Value;
+            
+            // 注意：不覆盖抠像控制面板设置的高级参数
+            // 保持 ChromaKeyTolerance, ChromaKeyGreenThreshold, ChromaKeyMinBrightness, ChromaKeyMaxBrightness 的现有值
+            // 这些参数由抠像控制面板专门管理
+            
             if (chkTopMost != null) settings.TopMostEnabled = chkTopMost.Checked;
             if (chkClickThrough != null) settings.ClickThroughEnabled = chkClickThrough.Checked;
             if (numWidth != null) settings.WindowWidth = (int)numWidth.Value;
@@ -428,11 +456,20 @@ namespace CoreApplication
             if (txtCloudAPIEndpoint != null) settings.CloudAPIEndpoint = txtCloudAPIEndpoint.Text;
         }private void BtnSave_Click(object? sender, EventArgs e)
         {
-            SaveSettingsFromUI(_currentSettings);
-            _currentSettings.Save(); // Save to file
+            // 从文件重新加载最新的设置，确保不覆盖其他组件的更改
+            var latestSettings = AppSettings.Load();
+            if (latestSettings == null)
+            {
+                latestSettings = new AppSettings();
+            }
+            
+            // 只更新当前设置界面管理的参数，不覆盖抠像控制面板的高级参数
+            SaveSettingsFromUI(latestSettings);
+            latestSettings.Save(); // Save to file
+            
             // 触发设置更改事件
-            SettingsChanged?.Invoke(this, new SettingsChangedEventArgs(_currentSettings));
-            MessageBox.Show("设置已保存！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            SettingsChanged?.Invoke(this, new SettingsChangedEventArgs(latestSettings));
+            MessageBox.Show("设置已保存！\n\n注意：抠像高级参数（容差、绿色阈值、亮度范围等）由抠像控制面板专门管理，\n不会被此处的保存操作覆盖。\n\n请使用 Alt+C 或点击'实时调节'按钮来调整这些参数。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             this.Hide(); // 保存后隐藏窗口
         }
 
