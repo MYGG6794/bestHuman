@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices; // For P/Invoke
 using CoreApplication; // For Logger
@@ -120,11 +122,13 @@ namespace CoreApplication
         public const uint VK_F10 = 0x79;
         public const uint VK_S = 0x53;
         public const uint VK_C = 0x43; // C键用于抠像控制
+        public const uint VK_T = 0x54; // T键用于切换点击穿透
 
         // 热键ID
         private const int HOTKEY_ID_SETTINGS_F10 = 1;
         private const int HOTKEY_ID_SETTINGS_S = 2;
         private const int HOTKEY_ID_CHROMA_C = 3;
+        private const int HOTKEY_ID_TOGGLE_CLICKTHROUGH = 4;
 
         // Window styles
         public const int GWL_EXSTYLE = -20;
@@ -154,9 +158,22 @@ namespace CoreApplication
         private AIManagerForm? aiManagerForm;
         private ChromaKeyControlForm? chromaKeyControlForm; // 抠像控制窗口
         //private NativeLayeredWindow? nativeWindow; // 原生透明窗口
+        
+        // 系统托盘支持
+        private NotifyIcon? notifyIcon;
+        private ContextMenuStrip? trayMenu;
+        
+        // 状态显示
+        private StatusStrip? statusStrip;
+        private ToolStripStatusLabel? statusLabel;
+        private ToolStripStatusLabel? chromaKeyStatusLabel;
+        private ToolStripStatusLabel? webSocketStatusLabel;
 
         // 在MainForm类中添加这个变量来跟踪Alt键状态
-        private bool isAltKeyPressed = false;        public MainForm(AIService aiService, SettingsForm.AppSettings appSettings)
+        private bool isAltKeyPressed = false;
+        private bool isExiting = false; // 标识是否正在退出程序
+
+        public MainForm(AIService aiService, SettingsForm.AppSettings appSettings)
         {
             Logger.LogInfo("MainForm 构造函数开始。");
             
@@ -179,7 +196,9 @@ namespace CoreApplication
                 Logger.LogInfo("使用默认居中位置");
             }
             
-            FormBorderStyle = FormBorderStyle.None; // 无边框窗口            // 根据抠像设置决定背景色和透明Key
+            FormBorderStyle = FormBorderStyle.None; // 无边框窗口
+
+            // 根据抠像设置决定背景色和透明Key
             if (appSettings.EnableChromaKey)
             {
                 this.BackColor = appSettings.ChromaKeyColor;  // 抠像模式使用选择的抠像颜色背景
@@ -193,16 +212,6 @@ namespace CoreApplication
                 Logger.LogInfo("主窗口设置为正常模式 - 黑色背景不透明");
             }
             
-            // 强制刷新窗口
-            this.Invalidate();
-            this.Update();
-            
-            // 窗口加载完成后强制设置透明（如果需要）
-            this.Load += (sender, e) => {
-                this.BackColor = Color.Lime;
-                this.TransparencyKey = Color.Lime;
-            };
-            
             // 确保窗口在最前面
             this.TopMost = true;
             this.WindowState = FormWindowState.Normal;
@@ -212,10 +221,8 @@ namespace CoreApplication
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
             this.SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             
-            // 添加窗口拖动支持
-            this.MouseDown += MainForm_MouseDown;
-            this.MouseMove += MainForm_MouseMove;
-            this.MouseUp += MainForm_MouseUp;
+            // 初始化时不添加拖动事件，在ApplySettings中根据点击穿透状态决定
+            // 这样避免冲突
             
             // 强制刷新窗口
             this.Invalidate();
@@ -299,26 +306,39 @@ namespace CoreApplication
             // AIService 已从外部传入，无需重新创建
             // 创建 AIManagerForm 实例
             aiManagerForm = new AIManagerForm(aiService, appSettings);
+            
             Logger.LogInfo("MainForm 构造函数结束。");
-        }        // 窗口加载完成后确保透明生效
+        }
+
+        // 重写OnLoad方法，在窗体加载时初始化托盘和状态栏
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
             
-            // 如果抠像已启用，设置透明色
+            // 初始化系统托盘
+            InitializeSystemTray();
+            
+            // 初始化状态栏
+            InitializeStatusBar();
+            
+            // 设置正确的透明色
             if (appSettings.EnableChromaKey)
             {
-                this.BackColor = Color.Green; // 使用绿色，与视频绿幕一致
-                this.TransparencyKey = Color.Green;
-                Logger.LogInfo("窗口加载完成，抠像已启用 - 设置绿色透明");
+                this.BackColor = appSettings.ChromaKeyColor;
+                this.TransparencyKey = appSettings.ChromaKeyColor;
+                Logger.LogInfo($"窗口加载完成，抠像已启用 - 设置抠像颜色透明: {appSettings.ChromaKeyColor}");
             }
             else
             {
+                this.BackColor = Color.Black;
+                this.TransparencyKey = Color.Empty;
                 Logger.LogInfo("窗口加载完成，抠像未启用 - 保持不透明");
             }
             
-            // 显示确认消息（仅在调试模式）
-            MessageBox.Show($"bestHuman程序启动成功！\n抠像状态: {(appSettings.EnableChromaKey ? "已启用" : "未启用")}", "启动确认", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // 移除调试消息框，避免干扰用户体验
+            // MessageBox.Show($"bestHuman程序启动成功！\n抠像状态: {(appSettings.EnableChromaKey ? "已启用" : "未启用")}", "启动确认", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            UpdateMainStatus("程序启动完成", Color.LightGreen);
         }
 
         // 窗口显示后再次确保透明
@@ -357,17 +377,41 @@ namespace CoreApplication
         private void WebSocketClient_OnConnected(object? sender, EventArgs e)
         {
             Logger.LogInfo("WebSocket 连接成功事件。");
-            // TODO: 更新UI状态，通知其他模块
+            UpdateWebSocketStatus(true); // 更新状态栏
+            UpdateMainStatus("WebSocket已连接", Color.LightGreen);
             speechService?.StartSpeechRecognition(); // 连接成功后启动语音识别
         }
 
         // 在窗体关闭时断开 WebSocket 连接
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // 如果用户点击关闭按钮且不是正在退出，隐藏到托盘而不是退出
+            if (e.CloseReason == CloseReason.UserClosing && !isExiting)
+            {
+                e.Cancel = true;
+                this.Hide();
+                if (notifyIcon != null)
+                {
+                    notifyIcon.ShowBalloonTip(2000, "bestHuman", "程序已最小化到系统托盘", ToolTipIcon.Info);
+                }
+                return;
+            }
+            
             base.OnFormClosing(e);
             
             // 注销全局热键
             UnregisterGlobalHotkeys();
+            
+            // 清理系统托盘
+            if (notifyIcon != null)
+            {
+                notifyIcon.Visible = false;
+                notifyIcon.Dispose();
+            }
+            if (trayMenu != null)
+            {
+                trayMenu.Dispose();
+            }
             
             if (webSocketClient != null)
             {
@@ -391,7 +435,8 @@ namespace CoreApplication
         private void WebSocketClient_OnDisconnected(object? sender, EventArgs e)
         {
             Logger.LogInfo("WebSocket 连接断开事件。");
-            // TODO: 更新UI状态，通知其他模块
+            UpdateWebSocketStatus(false); // 更新状态栏
+            UpdateMainStatus("WebSocket已断开", Color.Orange);
             speechService?.StopSpeechRecognition(); // 断开连接后停止语音识别
         }
 
@@ -408,7 +453,8 @@ namespace CoreApplication
         private void WebSocketClient_OnError(object? sender, string errorMessage)
         {
             Logger.LogError($"WebSocket 错误: {errorMessage}");
-            // TODO: 更新UI状态，显示错误信息
+            UpdateWebSocketStatus(false); // 更新状态栏
+            UpdateMainStatus($"WebSocket错误: {errorMessage}", Color.Red);
         }
 
         private void SpeechService_OnSpeechRecognized(object? sender, string recognizedText)
@@ -535,6 +581,10 @@ namespace CoreApplication
                 
                 // 保存更新后的设置
                 appSettings.Save(); // 使用AppSettings.Save()方法保存到文件
+                
+                // 更新状态栏显示
+                UpdateChromaKeyStatus();
+                UpdateMainStatus("抠像参数已更新", Color.LightGreen);
                 
                 Logger.LogInfo("抠像参数已实时更新并保存。");
             }
@@ -702,6 +752,15 @@ namespace CoreApplication
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
+            
+            // Alt + T 切换点击穿透
+            if (e.KeyCode == Keys.T && isAltKeyPressed)
+            {
+                Logger.LogInfo("Alt + T 快捷键被按下 - 切换点击穿透状态。");
+                ToggleClickThrough();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         }
 
         // 提取设置窗口切换逻辑到单独方法，避免代码重复
@@ -851,6 +910,18 @@ namespace CoreApplication
                 // 设置窗口完全不透明，但允许点击穿透
                 SetLayeredWindowAttributes(this.Handle, 0, 255, LWA_ALPHA);
 
+                // 启用点击穿透时，禁用拖动功能
+                this.MouseDown -= MainForm_MouseDown;
+                this.MouseMove -= MainForm_MouseMove;
+                this.MouseUp -= MainForm_MouseUp;
+                
+                if (digitalHumanDisplay != null)
+                {
+                    digitalHumanDisplay.MouseDown -= MainForm_MouseDown;
+                    digitalHumanDisplay.MouseMove -= MainForm_MouseMove;
+                    digitalHumanDisplay.MouseUp -= MainForm_MouseUp;
+                }
+                
                 // 即使启用点击穿透，也要确保能接收键盘事件
                 this.KeyPreview = true;
                 this.ShowInTaskbar = true;
@@ -859,6 +930,8 @@ namespace CoreApplication
                 Logger.LogInfo("点击穿透模式下重新注册全局热键");
                 UnregisterGlobalHotkeys();
                 RegisterGlobalHotkeys();
+                
+                UpdateMainStatus("点击穿透已启用 - 无法拖动窗口", Color.Yellow);
             }
             else
             {
@@ -866,14 +939,61 @@ namespace CoreApplication
                 exStyle &= ~(WS_EX_LAYERED | WS_EX_TRANSPARENT);
                 SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
                 
+                // 禁用点击穿透时，启用拖动功能
+                this.MouseDown -= MainForm_MouseDown; // 先移除避免重复
+                this.MouseMove -= MainForm_MouseMove;
+                this.MouseUp -= MainForm_MouseUp;
+                this.MouseDown += MainForm_MouseDown; // 重新添加
+                this.MouseMove += MainForm_MouseMove;
+                this.MouseUp += MainForm_MouseUp;
+                
+                if (digitalHumanDisplay != null)
+                {
+                    digitalHumanDisplay.MouseDown -= MainForm_MouseDown;
+                    digitalHumanDisplay.MouseMove -= MainForm_MouseMove;
+                    digitalHumanDisplay.MouseUp -= MainForm_MouseUp;
+                    digitalHumanDisplay.MouseDown += MainForm_MouseDown;
+                    digitalHumanDisplay.MouseMove += MainForm_MouseMove;
+                    digitalHumanDisplay.MouseUp += MainForm_MouseUp;
+                }
+                
                 // 重新注册全局热键
                 Logger.LogInfo("非点击穿透模式下重新注册全局热键");
                 UnregisterGlobalHotkeys();
                 RegisterGlobalHotkeys();
+                
+                UpdateMainStatus("点击穿透已禁用 - 可以拖动窗口", Color.LightGreen);
             }
 
             // 强制窗口重绘以应用更改
             this.Invalidate();
+        }
+
+        // 切换点击穿透状态
+        private void ToggleClickThrough()
+        {
+            try
+            {
+                appSettings.ClickThroughEnabled = !appSettings.ClickThroughEnabled;
+                EnableClickThrough(appSettings.ClickThroughEnabled);
+                appSettings.Save();
+                
+                string status = appSettings.ClickThroughEnabled ? "已启用" : "已禁用";
+                Logger.LogInfo($"点击穿透状态已切换: {status}");
+                
+                // 通过系统托盘显示通知
+                if (notifyIcon != null)
+                {
+                    string message = appSettings.ClickThroughEnabled ? 
+                        "点击穿透已启用 - 无法拖动窗口\n使用 Alt+T 可重新启用拖动" : 
+                        "点击穿透已禁用 - 可以拖动和调整窗口大小";
+                    notifyIcon.ShowBalloonTip(3000, "bestHuman", message, ToolTipIcon.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"切换点击穿透状态时出错: {ex.Message}", ex);
+            }
         }
 
         // 配置持久化：加载设置
@@ -946,6 +1066,10 @@ namespace CoreApplication
                 bool result3 = RegisterHotKey(this.Handle, HOTKEY_ID_CHROMA_C, MOD_ALT, VK_C);
                 Logger.LogInfo($"注册全局热键 Alt+C (抠像控制): {(result3 ? "成功" : "失败")}");
                 
+                // 注册 Alt+T 用于切换点击穿透
+                bool result4 = RegisterHotKey(this.Handle, HOTKEY_ID_TOGGLE_CLICKTHROUGH, MOD_ALT, VK_T);
+                Logger.LogInfo($"注册全局热键 Alt+T (切换点击穿透): {(result4 ? "成功" : "失败")}");
+                
                 if (!result1 && !result2)
                 {
                     Logger.LogWarning("所有全局热键注册失败，将依赖窗体按键事件");
@@ -964,6 +1088,8 @@ namespace CoreApplication
             {
                 UnregisterHotKey(this.Handle, HOTKEY_ID_SETTINGS_F10);
                 UnregisterHotKey(this.Handle, HOTKEY_ID_SETTINGS_S);
+                UnregisterHotKey(this.Handle, HOTKEY_ID_CHROMA_C); // 添加缺失的抠像控制热键注销
+                UnregisterHotKey(this.Handle, HOTKEY_ID_TOGGLE_CLICKTHROUGH); // 点击穿透切换热键注销
                 Logger.LogInfo("已注销所有全局热键");
             }
             catch (Exception ex)
@@ -991,6 +1117,11 @@ namespace CoreApplication
                     case HOTKEY_ID_CHROMA_C:
                         Logger.LogInfo("通过全局热键 Alt+C 触发抠像控制窗口切换");
                         ToggleChromaKeyControlWindow();
+                        return; // 不调用base.WndProc，表示我们已经处理了这个消息
+                    
+                    case HOTKEY_ID_TOGGLE_CLICKTHROUGH:
+                        Logger.LogInfo("通过全局热键 Alt+T 触发点击穿透切换");
+                        ToggleClickThrough();
                         return; // 不调用base.WndProc，表示我们已经处理了这个消息
                 }
             }
@@ -1080,10 +1211,7 @@ namespace CoreApplication
                 digitalHumanDisplay = new DigitalHumanDisplay();
                 digitalHumanDisplay.Dock = DockStyle.Fill;
                 
-                // 让DigitalHumanDisplay控件也支持拖动主窗口
-                digitalHumanDisplay.MouseDown += MainForm_MouseDown;
-                digitalHumanDisplay.MouseMove += MainForm_MouseMove;
-                digitalHumanDisplay.MouseUp += MainForm_MouseUp;
+                // 先不添加拖动事件，会在ApplySettings中根据点击穿透状态添加
                 
                 Controls.Add(digitalHumanDisplay);
                 
@@ -1121,28 +1249,68 @@ namespace CoreApplication
             }
         }
 
-        #region 窗口拖动支持
+        #region 窗口拖动和调整大小支持
         private bool isDragging = false;
+        private bool isResizing = false;
         private Point dragStartPoint;
+        private Size originalSize;
+        private ResizeDirection resizeDirection = ResizeDirection.None;
+        
+        // 调整大小的方向
+        private enum ResizeDirection
+        {
+            None,
+            N, S, E, W,
+            NE, NW, SE, SW
+        }
+        
+        // 调整大小的边界检测阈值
+        private const int ResizeBorderThickness = 8;
 
         private void MainForm_MouseDown(object? sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                isDragging = true;
-                dragStartPoint = e.Location;
-                Logger.LogInfo($"开始拖动窗口，起始位置: {e.Location}");
+                // 检测是否在调整大小的边界区域
+                resizeDirection = GetResizeDirection(e.Location);
+                
+                if (resizeDirection != ResizeDirection.None)
+                {
+                    // 开始调整大小
+                    isResizing = true;
+                    originalSize = this.Size;
+                    dragStartPoint = e.Location;
+                    Logger.LogInfo($"开始调整窗口大小，方向: {resizeDirection}，起始位置: {e.Location}");
+                }
+                else
+                {
+                    // 开始拖动
+                    isDragging = true;
+                    dragStartPoint = e.Location;
+                    Logger.LogInfo($"开始拖动窗口，起始位置: {e.Location}");
+                }
             }
         }
 
         private void MainForm_MouseMove(object? sender, MouseEventArgs e)
         {
-            if (isDragging && e.Button == MouseButtons.Left)
+            if (isResizing && e.Button == MouseButtons.Left)
             {
+                // 调整窗口大小
+                ResizeWindow(e.Location);
+            }
+            else if (isDragging && e.Button == MouseButtons.Left)
+            {
+                // 拖动窗口
                 Point currentLocation = this.Location;
                 currentLocation.X += e.X - dragStartPoint.X;
                 currentLocation.Y += e.Y - dragStartPoint.Y;
                 this.Location = currentLocation;
+            }
+            else
+            {
+                // 更新鼠标光标
+                UpdateCursor(e.Location);
             }
         }
 
@@ -1150,16 +1318,291 @@ namespace CoreApplication
         {
             if (e.Button == MouseButtons.Left)
             {
-                isDragging = false;
-                Logger.LogInfo($"停止拖动窗口，当前位置: {this.Location}");
+                if (isResizing)
+                {
+                    isResizing = false;
+                    Logger.LogInfo($"停止调整窗口大小，当前尺寸: {this.Size}");
+                }
                 
-                // 保存窗口位置到设置
+                if (isDragging)
+                {
+                    isDragging = false;
+                    Logger.LogInfo($"停止拖动窗口，当前位置: {this.Location}");
+                }
+                
+                // 保存窗口位置和大小到设置
                 if (appSettings != null)
                 {
                     appSettings.WindowX = this.Location.X;
                     appSettings.WindowY = this.Location.Y;
+                    appSettings.WindowWidth = this.Width;
+                    appSettings.WindowHeight = this.Height;
                     appSettings.Save();
+                    Logger.LogInfo($"保存窗口状态: 位置({appSettings.WindowX}, {appSettings.WindowY}), 大小({appSettings.WindowWidth}x{appSettings.WindowHeight})");
                 }
+                
+                resizeDirection = ResizeDirection.None;
+                this.Cursor = Cursors.Default;
+            }
+        }
+        
+        private ResizeDirection GetResizeDirection(Point location)
+        {
+            // 检测鼠标位置是否在窗口边界区域
+            Rectangle clientRect = this.ClientRectangle;
+            
+            bool onLeft = location.X <= ResizeBorderThickness;
+            bool onRight = location.X >= clientRect.Width - ResizeBorderThickness;
+            bool onTop = location.Y <= ResizeBorderThickness;
+            bool onBottom = location.Y >= clientRect.Height - ResizeBorderThickness;
+            
+            if (onTop && onLeft) return ResizeDirection.NW;
+            if (onTop && onRight) return ResizeDirection.NE;
+            if (onBottom && onLeft) return ResizeDirection.SW;
+            if (onBottom && onRight) return ResizeDirection.SE;
+            if (onTop) return ResizeDirection.N;
+            if (onBottom) return ResizeDirection.S;
+            if (onLeft) return ResizeDirection.W;
+            if (onRight) return ResizeDirection.E;
+            
+            return ResizeDirection.None;
+        }
+        
+        private void UpdateCursor(Point location)
+        {
+            ResizeDirection direction = GetResizeDirection(location);
+            
+            switch (direction)
+            {
+                case ResizeDirection.N:
+                case ResizeDirection.S:
+                    this.Cursor = Cursors.SizeNS;
+                    break;
+                case ResizeDirection.E:
+                case ResizeDirection.W:
+                    this.Cursor = Cursors.SizeWE;
+                    break;
+                case ResizeDirection.NE:
+                case ResizeDirection.SW:
+                    this.Cursor = Cursors.SizeNESW;
+                    break;
+                case ResizeDirection.NW:
+                case ResizeDirection.SE:
+                    this.Cursor = Cursors.SizeNWSE;
+                    break;
+                default:
+                    this.Cursor = Cursors.Default;
+                    break;
+            }
+        }
+        
+        private void ResizeWindow(Point currentLocation)
+        {
+            int deltaX = currentLocation.X - dragStartPoint.X;
+            int deltaY = currentLocation.Y - dragStartPoint.Y;
+            
+            Rectangle newBounds = this.Bounds;
+            
+            switch (resizeDirection)
+            {
+                case ResizeDirection.N:
+                    newBounds.Y += deltaY;
+                    newBounds.Height -= deltaY;
+                    break;
+                case ResizeDirection.S:
+                    newBounds.Height = originalSize.Height + deltaY;
+                    break;
+                case ResizeDirection.E:
+                    newBounds.Width = originalSize.Width + deltaX;
+                    break;
+                case ResizeDirection.W:
+                    newBounds.X += deltaX;
+                    newBounds.Width -= deltaX;
+                    break;
+                case ResizeDirection.NE:
+                    newBounds.Y += deltaY;
+                    newBounds.Height -= deltaY;
+                    newBounds.Width = originalSize.Width + deltaX;
+                    break;
+                case ResizeDirection.NW:
+                    newBounds.Y += deltaY;
+                    newBounds.Height -= deltaY;
+                    newBounds.X += deltaX;
+                    newBounds.Width -= deltaX;
+                    break;
+                case ResizeDirection.SE:
+                    newBounds.Height = originalSize.Height + deltaY;
+                    newBounds.Width = originalSize.Width + deltaX;
+                    break;
+                case ResizeDirection.SW:
+                    newBounds.Height = originalSize.Height + deltaY;
+                    newBounds.X += deltaX;
+                    newBounds.Width -= deltaX;
+                    break;
+            }
+            
+            // 设置最小窗口大小
+            const int minWidth = 200;
+            const int minHeight = 150;
+            
+            if (newBounds.Width >= minWidth && newBounds.Height >= minHeight)
+            {
+                this.Bounds = newBounds;
+            }
+        }
+        #endregion
+
+        #region 状态栏支持
+        private void InitializeStatusBar()
+        {
+            try
+            {
+                // 创建状态栏
+                statusStrip = new StatusStrip();
+                statusStrip.BackColor = Color.FromArgb(45, 45, 48); // 深色背景
+                statusStrip.ForeColor = Color.White;
+                
+                // 主状态标签
+                statusLabel = new ToolStripStatusLabel();
+                statusLabel.Text = "就绪";
+                statusLabel.ForeColor = Color.LightGreen;
+                statusLabel.Spring = true; // 自动填充剩余空间
+                statusLabel.TextAlign = ContentAlignment.MiddleLeft;
+                
+                // 抠像状态标签
+                chromaKeyStatusLabel = new ToolStripStatusLabel();
+                UpdateChromaKeyStatus();
+                
+                // WebSocket状态标签
+                webSocketStatusLabel = new ToolStripStatusLabel();
+                webSocketStatusLabel.Text = "WebSocket: 断开";
+                webSocketStatusLabel.ForeColor = Color.Orange;
+                
+                // 添加到状态栏
+                statusStrip.Items.AddRange(new ToolStripItem[] {
+                    statusLabel,
+                    new ToolStripSeparator(),
+                    chromaKeyStatusLabel,
+                    new ToolStripSeparator(),
+                    webSocketStatusLabel
+                });
+                
+                // 添加到窗口
+                this.Controls.Add(statusStrip);
+                
+                Logger.LogInfo("状态栏初始化完成");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"初始化状态栏失败: {ex.Message}", ex);
+            }
+        }
+        
+        private void UpdateChromaKeyStatus()
+        {
+            if (chromaKeyStatusLabel != null)
+            {
+                if (appSettings.EnableChromaKey)
+                {
+                    chromaKeyStatusLabel.Text = "抠像: 启用";
+                    chromaKeyStatusLabel.ForeColor = Color.LightGreen;
+                }
+                else
+                {
+                    chromaKeyStatusLabel.Text = "抠像: 禁用";
+                    chromaKeyStatusLabel.ForeColor = Color.Gray;
+                }
+            }
+        }
+        
+        private void UpdateWebSocketStatus(bool connected)
+        {
+            if (webSocketStatusLabel != null)
+            {
+                if (connected)
+                {
+                    webSocketStatusLabel.Text = "WebSocket: 已连接";
+                    webSocketStatusLabel.ForeColor = Color.LightGreen;
+                }
+                else
+                {
+                    webSocketStatusLabel.Text = "WebSocket: 断开";
+                    webSocketStatusLabel.ForeColor = Color.Orange;
+                }
+            }
+        }
+        
+        private void UpdateMainStatus(string message, Color? color = null)
+        {
+            if (statusLabel != null)
+            {
+                statusLabel.Text = message;
+                if (color.HasValue)
+                {
+                    statusLabel.ForeColor = color.Value;
+                }
+            }
+        }
+        #endregion
+
+        #region 系统托盘支持
+        private void InitializeSystemTray()
+        {
+            try
+            {
+                // 创建托盘菜单
+                trayMenu = new ContextMenuStrip();
+                trayMenu.Items.Add("显示主窗口", null, (s, e) => {
+                    this.Show();
+                    this.WindowState = FormWindowState.Normal;
+                    this.Activate();
+                });
+                trayMenu.Items.Add("-");
+                trayMenu.Items.Add("设置", null, (s, e) => ToggleSettingsWindow());
+                trayMenu.Items.Add("抠像控制", null, (s, e) => ToggleChromaKeyControlWindow());
+                trayMenu.Items.Add("切换点击穿透 (Alt+T)", null, (s, e) => ToggleClickThrough());
+                trayMenu.Items.Add("AI管理", null, (s, e) => {
+                    if (aiService != null) {
+                        if (aiManagerForm == null || aiManagerForm.IsDisposed)
+                            aiManagerForm = new AIManagerForm(aiService, appSettings);
+                        aiManagerForm.Show();
+                        aiManagerForm.Activate();
+                    }
+                });
+                trayMenu.Items.Add("-");
+                trayMenu.Items.Add("退出", null, (s, e) => {
+                    // 设置退出标志并关闭程序
+                    isExiting = true;
+                    this.Close();
+                    Application.Exit();
+                });
+
+                // 创建托盘图标
+                notifyIcon = new NotifyIcon();
+                notifyIcon.Icon = SystemIcons.Application; // 使用系统默认图标
+                notifyIcon.Text = "bestHuman 数字人助手";
+                notifyIcon.ContextMenuStrip = trayMenu;
+                notifyIcon.Visible = true;
+                
+                // 双击托盘图标显示主窗口
+                notifyIcon.DoubleClick += (s, e) => {
+                    if (this.WindowState == FormWindowState.Minimized || !this.Visible)
+                    {
+                        this.Show();
+                        this.WindowState = FormWindowState.Normal;
+                        this.Activate();
+                    }
+                    else
+                    {
+                        this.Hide();
+                    }
+                };
+
+                Logger.LogInfo("系统托盘初始化完成");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"初始化系统托盘失败: {ex.Message}", ex);
             }
         }
         #endregion
