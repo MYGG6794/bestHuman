@@ -49,7 +49,9 @@ namespace CoreApplication
                     CloudAPIKey = appSettings.CloudAPIKey,
                     CloudAPIEndpoint = appSettings.CloudAPIEndpoint
                 };
-                var aiService = new AIService(WebSocketClient, aiServiceConfig);
+                
+                // 使用 using 语句确保 AIService 被正确释放
+                using var aiService = new AIService(WebSocketClient, aiServiceConfig);
 
                 Form mainFormToRun;
 
@@ -78,6 +80,26 @@ namespace CoreApplication
             }
             finally
             {
+                // 确保全局资源被清理
+                try
+                {
+                    if (WebSocketClient != null)
+                    {
+                        WebSocketClient.Dispose();
+                    }
+                    
+                    if (nativeWindowInstance != null && !nativeWindowInstance.IsDisposed)
+                    {
+                        nativeWindowInstance.Dispose();
+                    }
+                    
+                    Logger.LogInfo("全局资源清理完成");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError($"清理全局资源时发生错误: {ex.Message}", ex);
+                }
+                
                 Logger.LogInfo("应用程序已关闭。");
             }
         }
@@ -89,7 +111,7 @@ namespace CoreApplication
         }
     }
 
-    public class MainForm : Form
+    public class MainForm : Form, IDisposable
     {
         // Windows API declarations for click-through and topmost
         [DllImport("user32.dll", SetLastError = true)]
@@ -169,6 +191,9 @@ namespace CoreApplication
         private ToolStripStatusLabel? chromaKeyStatusLabel;
         private ToolStripStatusLabel? webSocketStatusLabel;
 
+        // 需要清理的资源
+        private System.Windows.Forms.Timer? inputCheckTimer; // 定时器需要清理
+
         // 在MainForm类中添加这个变量来跟踪Alt键状态
         private bool isAltKeyPressed = false;
         private bool isExiting = false; // 标识是否正在退出程序
@@ -181,10 +206,15 @@ namespace CoreApplication
             this.appSettings = appSettings;
             this.aiService = aiService;
             Text = "bestHuman 数字人助手";
-            Size = new System.Drawing.Size(800, 600); // 固定一个合理的大小
             
-            // 应用保存的窗口位置
-            if (appSettings.WindowX >= 0 && appSettings.WindowY >= 0)
+            // 应用保存的窗口大小，确保最小尺寸
+            int windowWidth = Math.Max(appSettings.WindowWidth, 400);
+            int windowHeight = Math.Max(appSettings.WindowHeight, 300);
+            Size = new System.Drawing.Size(windowWidth, windowHeight);
+            Logger.LogInfo($"设置窗口大小: {windowWidth}x{windowHeight}");
+            
+            // 应用保存的窗口位置，注意 -1 表示未设置
+            if (appSettings.WindowX != -1 && appSettings.WindowY != -1)
             {
                 StartPosition = FormStartPosition.Manual;
                 Location = new Point(appSettings.WindowX, appSettings.WindowY);
@@ -207,9 +237,10 @@ namespace CoreApplication
             }
             else
             {
-                this.BackColor = Color.Black;  // 非抠像模式使用黑色背景
+                // 非抠像模式使用黑色背景
+                this.BackColor = Color.Black;  
                 this.TransparencyKey = Color.Empty; // 不透明
-                Logger.LogInfo("主窗口设置为正常模式 - 黑色背景不透明");
+                Logger.LogInfo("主窗口设置为非抠像模式 - 黑色背景");
             }
             
             // 确保窗口在最前面
@@ -253,7 +284,7 @@ namespace CoreApplication
             RegisterGlobalHotkeys();
             
             // 添加定时器，每10秒检查一次键盘输入状态
-            System.Windows.Forms.Timer inputCheckTimer = new System.Windows.Forms.Timer();
+            inputCheckTimer = new System.Windows.Forms.Timer();
             inputCheckTimer.Interval = 10000; // 10秒
             inputCheckTimer.Tick += (s, e) => {
                 if (this.ContainsFocus)
@@ -318,8 +349,20 @@ namespace CoreApplication
             // 初始化系统托盘
             InitializeSystemTray();
             
-            // 初始化状态栏
-            InitializeStatusBar();
+            // 在像素流模式下不显示状态栏，避免影响拖动和视觉效果
+            if (!appSettings.UseNativeLayeredWindow)
+            {
+                Logger.LogInfo("像素流模式下跳过状态栏初始化，避免底部拖动区域被遮挡");
+            }
+            else
+            {
+                // 初始化状态栏（仅在原生模式下）
+                InitializeStatusBar();
+                Logger.LogInfo("原生模式下已初始化状态栏");
+            }
+            
+            // 应用所有设置，包括拖动事件注册
+            ApplySettings(appSettings);
             
             // 设置正确的透明色
             if (appSettings.EnableChromaKey)
@@ -338,7 +381,38 @@ namespace CoreApplication
             // 移除调试消息框，避免干扰用户体验
             // MessageBox.Show($"bestHuman程序启动成功！\n抠像状态: {(appSettings.EnableChromaKey ? "已启用" : "未启用")}", "启动确认", MessageBoxButtons.OK, MessageBoxIcon.Information);
             
-            UpdateMainStatus("程序启动完成", Color.LightGreen);
+            if (statusLabel != null)
+            {
+                UpdateMainStatus("程序启动完成", Color.LightGreen);
+            }
+            
+            // 输出调试信息
+            Logger.LogInfo($"窗口加载完成，点击穿透状态: {appSettings.ClickThroughEnabled}");
+            Logger.LogInfo($"拖动事件注册状态: 主窗口事件数={GetEventHandlerCount()}, digitalHumanDisplay={digitalHumanDisplay != null}");
+        }
+        
+        // 调试用方法：获取事件处理器数量
+        private int GetEventHandlerCount()
+        {
+            try
+            {
+                var mouseDownEvent = typeof(Control).GetField("EVENT_MOUSEDOWN", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                if (mouseDownEvent != null)
+                {
+                    var events = typeof(Control).GetProperty("Events", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(this);
+                    if (events != null)
+                    {
+                        var eventKey = mouseDownEvent.GetValue(null);
+                        if (eventKey != null)
+                        {
+                            var handler = events.GetType().GetMethod("get_Item")?.Invoke(events, new object[] { eventKey });
+                            return handler != null ? 1 : 0;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return -1; // 无法获取
         }
 
         // 窗口显示后再次确保透明
@@ -402,33 +476,91 @@ namespace CoreApplication
             // 注销全局热键
             UnregisterGlobalHotkeys();
             
+            // 清理定时器
+            if (inputCheckTimer != null)
+            {
+                inputCheckTimer.Stop();
+                inputCheckTimer.Dispose();
+                inputCheckTimer = null;
+            }
+            
             // 清理系统托盘
             if (notifyIcon != null)
             {
                 notifyIcon.Visible = false;
                 notifyIcon.Dispose();
+                notifyIcon = null;
             }
             if (trayMenu != null)
             {
                 trayMenu.Dispose();
+                trayMenu = null;
             }
             
+            // 清理状态栏控件
+            if (statusStrip != null)
+            {
+                statusStrip.Dispose();
+                statusStrip = null;
+            }
+            
+            // 清理 WebSocketClient
             if (webSocketClient != null)
             {
                 _ = webSocketClient.DisconnectAsync();
                 webSocketClient.Dispose();
             }
+            
+            // 清理 SpeechService
             if (speechService != null)
             {
                 speechService.Dispose();
+                speechService = null;
             }
+            
+            // 清理 AIService
             if (aiService != null)
             {
                 aiService.Dispose();
+                aiService = null;
             }
+            
+            // 清理窗体实例
             if (aiManagerForm != null)
             {
-                aiManagerForm.Dispose();
+                if (!aiManagerForm.IsDisposed)
+                {
+                    aiManagerForm.Dispose();
+                }
+                aiManagerForm = null;
+            }
+            
+            if (chromaKeyControlForm != null)
+            {
+                if (!chromaKeyControlForm.IsDisposed)
+                {
+                    chromaKeyControlForm.Dispose();
+                }
+                chromaKeyControlForm = null;
+            }
+            
+            if (settingsForm != null)
+            {
+                if (!settingsForm.IsDisposed)
+                {
+                    settingsForm.Dispose();
+                }
+                // settingsForm 不能设为 null，因为它被声明为非空类型
+            }
+            
+            // 清理 DigitalHumanDisplay
+            if (digitalHumanDisplay != null)
+            {
+                if (!digitalHumanDisplay.IsDisposed)
+                {
+                    digitalHumanDisplay.Dispose();
+                }
+                digitalHumanDisplay = null;
             }
         }
 
@@ -911,16 +1043,7 @@ namespace CoreApplication
                 SetLayeredWindowAttributes(this.Handle, 0, 255, LWA_ALPHA);
 
                 // 启用点击穿透时，禁用拖动功能
-                this.MouseDown -= MainForm_MouseDown;
-                this.MouseMove -= MainForm_MouseMove;
-                this.MouseUp -= MainForm_MouseUp;
-                
-                if (digitalHumanDisplay != null)
-                {
-                    digitalHumanDisplay.MouseDown -= MainForm_MouseDown;
-                    digitalHumanDisplay.MouseMove -= MainForm_MouseMove;
-                    digitalHumanDisplay.MouseUp -= MainForm_MouseUp;
-                }
+                RemoveDragEventHandlers();
                 
                 // 即使启用点击穿透，也要确保能接收键盘事件
                 this.KeyPreview = true;
@@ -940,22 +1063,7 @@ namespace CoreApplication
                 SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle);
                 
                 // 禁用点击穿透时，启用拖动功能
-                this.MouseDown -= MainForm_MouseDown; // 先移除避免重复
-                this.MouseMove -= MainForm_MouseMove;
-                this.MouseUp -= MainForm_MouseUp;
-                this.MouseDown += MainForm_MouseDown; // 重新添加
-                this.MouseMove += MainForm_MouseMove;
-                this.MouseUp += MainForm_MouseUp;
-                
-                if (digitalHumanDisplay != null)
-                {
-                    digitalHumanDisplay.MouseDown -= MainForm_MouseDown;
-                    digitalHumanDisplay.MouseMove -= MainForm_MouseMove;
-                    digitalHumanDisplay.MouseUp -= MainForm_MouseUp;
-                    digitalHumanDisplay.MouseDown += MainForm_MouseDown;
-                    digitalHumanDisplay.MouseMove += MainForm_MouseMove;
-                    digitalHumanDisplay.MouseUp += MainForm_MouseUp;
-                }
+                AddDragEventHandlers();
                 
                 // 重新注册全局热键
                 Logger.LogInfo("非点击穿透模式下重新注册全局热键");
@@ -967,6 +1075,91 @@ namespace CoreApplication
 
             // 强制窗口重绘以应用更改
             this.Invalidate();
+        }
+        
+        // 移除拖动事件处理器
+        private void RemoveDragEventHandlers()
+        {
+            Logger.LogInfo($"RemoveDragEventHandlers 开始: digitalHumanDisplay={digitalHumanDisplay != null}, isDisposed={digitalHumanDisplay?.IsDisposed}");
+            
+            this.MouseDown -= MainForm_MouseDown;
+            this.MouseMove -= MainForm_MouseMove;
+            this.MouseUp -= MainForm_MouseUp;
+            Logger.LogInfo("主窗口拖动事件已移除");
+            
+            if (digitalHumanDisplay != null && !digitalHumanDisplay.IsDisposed)
+            {
+                digitalHumanDisplay.MouseDown -= DigitalHumanDisplay_MouseDown;
+                digitalHumanDisplay.MouseMove -= DigitalHumanDisplay_MouseMove;
+                digitalHumanDisplay.MouseUp -= DigitalHumanDisplay_MouseUp;
+                Logger.LogInfo("digitalHumanDisplay 拖动事件已移除");
+            }
+            else
+            {
+                Logger.LogInfo($"digitalHumanDisplay 状态异常，跳过事件移除: null={digitalHumanDisplay == null}, disposed={digitalHumanDisplay?.IsDisposed}");
+            }
+            
+            Logger.LogInfo("RemoveDragEventHandlers 完成");
+        }
+        
+        // 添加拖动事件处理器
+        private void AddDragEventHandlers()
+        {
+            Logger.LogInfo($"AddDragEventHandlers 开始: digitalHumanDisplay={digitalHumanDisplay != null}, isDisposed={digitalHumanDisplay?.IsDisposed}");
+            
+            // 先移除避免重复注册
+            RemoveDragEventHandlers();
+            
+            // 添加主窗口事件
+            this.MouseDown += MainForm_MouseDown;
+            this.MouseMove += MainForm_MouseMove;
+            this.MouseUp += MainForm_MouseUp;
+            Logger.LogInfo("主窗口拖动事件已添加");
+            
+            // 添加子控件事件（用于事件冒泡）
+            if (digitalHumanDisplay != null && !digitalHumanDisplay.IsDisposed)
+            {
+                digitalHumanDisplay.MouseDown += DigitalHumanDisplay_MouseDown;
+                digitalHumanDisplay.MouseMove += DigitalHumanDisplay_MouseMove;
+                digitalHumanDisplay.MouseUp += DigitalHumanDisplay_MouseUp;
+                Logger.LogInfo("digitalHumanDisplay 拖动事件已添加");
+            }
+            else
+            {
+                Logger.LogWarning($"digitalHumanDisplay 状态异常，无法添加拖动事件: null={digitalHumanDisplay == null}, disposed={digitalHumanDisplay?.IsDisposed}");
+            }
+            
+            Logger.LogInfo("AddDragEventHandlers 完成");
+        }
+        
+        // 子控件鼠标事件处理器 - 将事件冒泡到父窗口
+        private void DigitalHumanDisplay_MouseDown(object? sender, MouseEventArgs e)
+        {
+            Logger.LogInfo($"digitalHumanDisplay MouseDown 冒泡: {e.Location}");
+            MainForm_MouseDown(this, e);
+        }
+        
+        private void DigitalHumanDisplay_MouseMove(object? sender, MouseEventArgs e)
+        {
+            // 只在拖动或调整大小时才转发 MouseMove 事件以避免性能问题
+            if (isDragging || isResizing)
+            {
+                MainForm_MouseMove(this, e);
+            }
+            else
+            {
+                // 即使不在拖动，也要更新鼠标光标
+                UpdateCursor(e.Location);
+            }
+        }
+        
+        private void DigitalHumanDisplay_MouseUp(object? sender, MouseEventArgs e)
+        {
+            if (isDragging || isResizing)
+            {
+                Logger.LogInfo($"digitalHumanDisplay MouseUp 冒泡: {e.Location}");
+                MainForm_MouseUp(this, e);
+            }
         }
 
         // 切换点击穿透状态
@@ -1209,11 +1402,13 @@ namespace CoreApplication
             try
             {
                 digitalHumanDisplay = new DigitalHumanDisplay();
+                // 恢复 digitalHumanDisplay 填满窗口的布局，拖动功能通过事件冒泡实现
                 digitalHumanDisplay.Dock = DockStyle.Fill;
                 
-                // 先不添加拖动事件，会在ApplySettings中根据点击穿透状态添加
-                
                 Controls.Add(digitalHumanDisplay);
+                
+                // 事件处理器的添加统一由 EnableClickThrough 方法管理
+                // 这里不再有条件地添加，避免时序问题
                 
                 // 应用配置到显示控件
                 if (digitalHumanDisplay != null)
@@ -1266,6 +1461,9 @@ namespace CoreApplication
         
         // 调整大小的边界检测阈值
         private const int ResizeBorderThickness = 8;
+        
+        // 窗口吸附阈值
+        private const int SnapThreshold = 20;
 
         private void MainForm_MouseDown(object? sender, MouseEventArgs e)
         {
@@ -1305,6 +1503,10 @@ namespace CoreApplication
                 Point currentLocation = this.Location;
                 currentLocation.X += e.X - dragStartPoint.X;
                 currentLocation.Y += e.Y - dragStartPoint.Y;
+                
+                // 应用窗口吸附功能
+                currentLocation = ApplyWindowSnapping(currentLocation);
+                
                 this.Location = currentLocation;
             }
             else
@@ -1448,6 +1650,62 @@ namespace CoreApplication
             if (newBounds.Width >= minWidth && newBounds.Height >= minHeight)
             {
                 this.Bounds = newBounds;
+            }
+        }
+
+        private Point ApplyWindowSnapping(Point newLocation)
+        {
+            try
+            {
+                // 获取当前屏幕的工作区域
+                Screen currentScreen = Screen.FromPoint(newLocation);
+                Rectangle workingArea = currentScreen.WorkingArea;
+                
+                Point snappedLocation = newLocation;
+                bool snapped = false;
+                
+                // 左边缘吸附
+                if (Math.Abs(newLocation.X - workingArea.Left) <= SnapThreshold)
+                {
+                    snappedLocation.X = workingArea.Left;
+                    snapped = true;
+                    Logger.LogInfo("窗口吸附到屏幕左边缘");
+                }
+                // 右边缘吸附
+                else if (Math.Abs((newLocation.X + this.Width) - workingArea.Right) <= SnapThreshold)
+                {
+                    snappedLocation.X = workingArea.Right - this.Width;
+                    snapped = true;
+                    Logger.LogInfo("窗口吸附到屏幕右边缘");
+                }
+                
+                // 上边缘吸附
+                if (Math.Abs(newLocation.Y - workingArea.Top) <= SnapThreshold)
+                {
+                    snappedLocation.Y = workingArea.Top;
+                    snapped = true;
+                    Logger.LogInfo("窗口吸附到屏幕上边缘");
+                }
+                // 下边缘吸附
+                else if (Math.Abs((newLocation.Y + this.Height) - workingArea.Bottom) <= SnapThreshold)
+                {
+                    snappedLocation.Y = workingArea.Bottom - this.Height;
+                    snapped = true;
+                    Logger.LogInfo("窗口吸附到屏幕下边缘");
+                }
+                
+                // 如果发生了吸附，更新状态栏显示
+                if (snapped && statusLabel != null)
+                {
+                    UpdateMainStatus($"窗口已吸附到屏幕边缘: {snappedLocation}", Color.LightBlue);
+                }
+                
+                return snappedLocation;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"应用窗口吸附时出错: {ex.Message}", ex);
+                return newLocation;
             }
         }
         #endregion
@@ -1604,6 +1862,117 @@ namespace CoreApplication
             {
                 Logger.LogError($"初始化系统托盘失败: {ex.Message}", ex);
             }
+        }
+        #endregion
+        
+        #region IDisposable 实现
+        private bool disposed = false;
+        
+        /// <summary>
+        /// 实现 IDisposable 接口，确保所有资源被正确释放
+        /// </summary>
+        /// <param name="disposing">是否正在释放托管资源</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    // 释放托管资源
+                    try
+                    {
+                        // 停止并释放定时器
+                        if (inputCheckTimer != null)
+                        {
+                            inputCheckTimer.Stop();
+                            inputCheckTimer.Dispose();
+                            inputCheckTimer = null;
+                        }
+                        
+                        // 注销全局热键
+                        UnregisterGlobalHotkeys();
+                        
+                        // 释放系统托盘资源
+                        if (notifyIcon != null)
+                        {
+                            notifyIcon.Visible = false;
+                            notifyIcon.Dispose();
+                            notifyIcon = null;
+                        }
+                        
+                        if (trayMenu != null)
+                        {
+                            trayMenu.Dispose();
+                            trayMenu = null;
+                        }
+                        
+                        // 释放状态栏资源
+                        if (statusStrip != null)
+                        {
+                            statusStrip.Dispose();
+                            statusStrip = null;
+                        }
+                        
+                        // 释放服务资源
+                        if (speechService != null)
+                        {
+                            speechService.Dispose();
+                            speechService = null;
+                        }
+                        
+                        if (aiService != null)
+                        {
+                            aiService.Dispose();
+                            aiService = null;
+                        }
+                        
+                        // 释放窗体资源
+                        if (aiManagerForm != null && !aiManagerForm.IsDisposed)
+                        {
+                            aiManagerForm.Dispose();
+                            aiManagerForm = null;
+                        }
+                        
+                        if (chromaKeyControlForm != null && !chromaKeyControlForm.IsDisposed)
+                        {
+                            chromaKeyControlForm.Dispose();
+                            chromaKeyControlForm = null;
+                        }
+                        
+                        if (settingsForm != null && !settingsForm.IsDisposed)
+                        {
+                            settingsForm.Dispose();
+                            // settingsForm 不能设为 null，因为它被声明为非空类型
+                        }
+                        
+                        if (digitalHumanDisplay != null && !digitalHumanDisplay.IsDisposed)
+                        {
+                            digitalHumanDisplay.Dispose();
+                            digitalHumanDisplay = null;
+                        }
+                        
+                        Logger.LogInfo("MainForm 资源释放完成");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError($"释放 MainForm 资源时发生错误: {ex.Message}", ex);
+                    }
+                }
+                
+                disposed = true;
+            }
+            
+            // 调用基类的 Dispose 方法
+            base.Dispose(disposing);
+        }
+        
+        /// <summary>
+        /// 公共 Dispose 方法
+        /// </summary>
+        public new void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
         #endregion
     }

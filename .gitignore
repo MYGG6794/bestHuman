@@ -1,0 +1,48 @@
+# .NET Core
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sln.docstates
+
+# 日志文件
+*.log
+app.log
+
+# WebView2 用户数据
+webview2_data/
+
+# 临时文件
+*.tmp
+*.temp
+*~
+
+# 备份文件
+*.backup
+*.bak
+*.cs.new
+*.cs.fixed
+*.cs.updated
+*_fixed.cs
+*_new.cs
+
+# 模型和数据文件 (如果太大)
+models/*.onnx
+models/*.model
+
+# NuGet包
+packages/
+
+# Windows缩略图缓存
+Thumbs.db
+ehthumbs.db
+
+# 文件夹配置文件
+Desktop.ini
+
+# IDE 配置
+.idea/
+.vscode/settings.json
